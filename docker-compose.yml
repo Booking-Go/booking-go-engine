@@ -1,0 +1,127 @@
+# Booking.go - Infrastructure (Docker)
+#
+# Usage:
+#   docker compose up -d          Start all services
+#   docker compose down           Stop all services
+#   docker compose logs -f        Follow logs
+#   docker compose ps             Check status
+#
+# Individual services:
+#   docker compose up -d postgres
+#   docker compose up -d mongodb
+#   docker compose up -d redis
+
+services:
+  # ─── PostgreSQL ───────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: bookinggo-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-booking_go}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-booking_go}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── MongoDB ──────────────────────────────────────────
+  mongodb:
+    image: mongo:7-jammy
+    container_name: bookinggo-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER:-mongo}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-mongo}
+      MONGO_INITDB_DATABASE: ${MONGODB_DB:-booking_go}
+    volumes:
+      - mongodb_data:/data/db
+      - ./init/mongodb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: bookinggo-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── pgAdmin (Postgres UI) ───────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: bookinggo-pgadmin
+    restart: unless-stopped
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@bookinggo.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─── Mongo Express (MongoDB UI) ──────────────────────
+  mongo-express:
+    image: mongo-express:latest
+    container_name: bookinggo-mongo-express
+    restart: unless-stopped
+    ports:
+      - "${MONGO_EXPRESS_PORT:-8081}:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_USER:-mongo}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_PASSWORD:-mongo}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGODB_USER:-mongo}:${MONGODB_PASSWORD:-mongo}@mongodb:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  # ─── RedisInsight (Redis UI) ──────────────────────────
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: bookinggo-redisinsight
+    restart: unless-stopped
+    ports:
+      - "${REDISINSIGHT_PORT:-5540}:5540"
+    volumes:
+      - redisinsight_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    name: bookinggo-postgres-data
+  mongodb_data:
+    name: bookinggo-mongodb-data
+  redis_data:
+    name: bookinggo-redis-data
+  pgadmin_data:
+    name: bookinggo-pgadmin-data
+  redisinsight_data:
+    name: bookinggo-redisinsight-data
