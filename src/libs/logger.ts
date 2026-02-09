@@ -18,7 +18,7 @@ const devFormat = winston.format.combine(
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL,
   format: logFormat,
-  defaultMeta: { service: 'booking-go-backend' },
+  defaultMeta: { service: 'booking-go-engine' },
   transports: [
     new winston.transports.Console({
       format: process.env.NODE_ENV === 'production' ? logFormat : devFormat,

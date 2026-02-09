@@ -1,5 +1,5 @@
 {
-  "name": "booking-go-backend",
+  "name": "booking-go-engine",
   "version": "1.0.0",
   "description": "Backend API for Booking.go - Slot booking management system",
   "main": "dist/server.js",
