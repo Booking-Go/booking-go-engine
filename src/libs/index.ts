@@ -1,4 +1,4 @@
-export { logger } from './logger';
+export { logger, createRequestLogger } from './logger';
 export { cache } from './cache';
 export { email } from './email';
 export type { SendEmailOptions } from './email';

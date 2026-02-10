@@ -16,7 +16,6 @@ v1Router.get('/ping', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
 v1Router.use('/auth', authRoutes);
 v1Router.use('/businesses', businessRoutes);
 v1Router.use('/slots', slotRoutes);
