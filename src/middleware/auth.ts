@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jsonwebtoken from 'jsonwebtoken';
 
 import { AppError } from './errorHandler';
+import type { AccessTokenPayload } from '../libs/jwt';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -23,11 +24,20 @@ export const authenticate = async (
       throw new AppError('No token provided', 401);
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET!) as any;
-    req.user = decoded;
+    const decoded = jsonwebtoken.verify(token, process.env.JWT_ACCESS_SECRET!) as AccessTokenPayload;
+
+    // Map JWT payload (userId) → req.user (id) for downstream consumers
+    req.user = {
+      id: decoded.userId,
+      email: decoded.email,
+      role: decoded.role,
+    };
     
     next();
   } catch (error) {
+    if (error instanceof AppError) {
+      return next(error);
+    }
     next(new AppError('Invalid or expired token', 401));
   }
 };
