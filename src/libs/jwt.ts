@@ -51,8 +51,8 @@ export const jwt = {
   verifyAccessToken(token: string): AccessTokenPayload | null {
     try {
       return jsonwebtoken.verify(token, getAccessSecret()) as AccessTokenPayload;
-    } catch (error) {
-      logger.warn('Access token verification failed', { error });
+    } catch (err: unknown) {
+      logger.warn('Access token verification failed', { error: err });
       return null;
     }
   },
@@ -63,8 +63,8 @@ export const jwt = {
   verifyRefreshToken(token: string): RefreshTokenPayload | null {
     try {
       return jsonwebtoken.verify(token, getRefreshSecret()) as RefreshTokenPayload;
-    } catch (error) {
-      logger.warn('Refresh token verification failed', { error });
+    } catch (err: unknown) {
+      logger.warn('Refresh token verification failed', { error: err });
       return null;
     }
   },

@@ -12,6 +12,10 @@ export interface AuthRequest extends Request {
   };
 }
 
+/**
+ * Middleware that verifies the JWT access token from the `Authorization` header
+ * and attaches the decoded user payload to `req.user`.
+ */
 export const authenticate = async (
   req: AuthRequest,
   res: Response,
@@ -34,14 +38,18 @@ export const authenticate = async (
     };
     
     next();
-  } catch (error) {
-    if (error instanceof AppError) {
-      return next(error);
+  } catch (err: unknown) {
+    if (err instanceof AppError) {
+      return next(err);
     }
     next(new AppError('Invalid or expired token', 401));
   }
 };
 
+/**
+ * Authorization middleware factory — restricts access to users with specified roles.
+ * @param roles - Allowed user roles (e.g., `'admin'`, `'business_owner'`).
+ */
 export const authorize = (...roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {

@@ -39,9 +39,38 @@ export const userRepository = {
   },
 
   async update(id: string, data: Record<string, unknown>) {
-    // TODO: Implement in Sprint 3
-    logger.debug('userRepository.update', { id });
-    throw new Error('Not implemented');
+    logger.debug('userRepository.update', { id, fields: Object.keys(data) });
+
+    // Map camelCase input keys to snake_case DB columns
+    const fieldMap: Record<string, string> = {
+      firstName: 'first_name',
+      lastName: 'last_name',
+      phone: 'phone',
+      timezone: 'timezone',
+      language: 'language',
+      profileImage: 'profile_image',
+    };
+
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    for (const [key, value] of Object.entries(data)) {
+      const column = fieldMap[key];
+      if (!column) continue; // skip unknown fields
+      setClauses.push(`${column} = $${paramIndex}`);
+      values.push(value);
+      paramIndex++;
+    }
+
+    if (setClauses.length === 0) return this.findById(id);
+
+    values.push(id);
+    const { rows } = await pgPool.query(
+      `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values,
+    );
+    return rows[0] || null;
   },
 
   async delete(id: string) {

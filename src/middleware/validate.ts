@@ -26,9 +26,9 @@ export const validate = (
       req[source] = parsed;
 
       next();
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const details = error.errors.map((e) => ({
+    } catch (err: unknown) {
+      if (err instanceof ZodError) {
+        const details = err.errors.map((e) => ({
           field: e.path.join('.'),
           message: e.message,
         }));
@@ -45,7 +45,7 @@ export const validate = (
         return;
       }
 
-      next(error);
+      next(err);
     }
   };
 };

@@ -66,6 +66,10 @@ export type {
 export { createReviewSchema } from './review.validator';
 export type { CreateReviewInput } from './review.validator';
 
+// Message validators
+export { sendMessageSchema, startConversationSchema } from './message.validator';
+export type { SendMessageInput, StartConversationInput } from './message.validator';
+
 // Common validators
 export { paginationQuerySchema, uuidParamSchema } from './common.validator';
 export type { PaginationQuery, UuidParam } from './common.validator';

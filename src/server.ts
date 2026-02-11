@@ -25,6 +25,7 @@ import {
 } from './middleware';
 import { logger } from './libs';
 import router from './routes';
+import { initializeSocket } from './socket';
 import mongoose from 'mongoose';
 
 // ─── Bootstrap ──────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ app.use(
 app.use(requestId);
 
 // ─── 4. HTTP request logging (attach requestId to morgan tokens) ────────────
-morgan.token('request-id', (req) => (req as any).requestId);
+morgan.token('request-id', (req) => (req as express.Request).requestId);
 app.use(
   morgan(':method :url :status :response-time ms - :request-id', {
     stream: { write: (msg: string) => logger.http(msg.trim()) },
@@ -84,8 +85,9 @@ app.get('/health/ready', async (_req, res) => {
   try {
     await pgPool.query('SELECT 1');
     checks.postgres = { status: 'up', latencyMs: Date.now() - pgStart };
-  } catch (err: any) {
-    checks.postgres = { status: 'down', latencyMs: Date.now() - pgStart, error: err.message };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    checks.postgres = { status: 'down', latencyMs: Date.now() - pgStart, error: message };
   }
 
   // MongoDB
@@ -96,8 +98,9 @@ app.get('/health/ready', async (_req, res) => {
       status: mongoState === 1 ? 'up' : 'down',
       latencyMs: Date.now() - mongoStart,
     };
-  } catch (err: any) {
-    checks.mongodb = { status: 'down', latencyMs: Date.now() - mongoStart, error: err.message };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    checks.mongodb = { status: 'down', latencyMs: Date.now() - mongoStart, error: message };
   }
 
   // Redis
@@ -105,8 +108,9 @@ app.get('/health/ready', async (_req, res) => {
   try {
     await redisClient.ping();
     checks.redis = { status: 'up', latencyMs: Date.now() - redisStart };
-  } catch (err: any) {
-    checks.redis = { status: 'down', latencyMs: Date.now() - redisStart, error: err.message };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    checks.redis = { status: 'down', latencyMs: Date.now() - redisStart, error: message };
   }
 
   const allUp = Object.values(checks).every((c) => c.status === 'up');
@@ -143,6 +147,9 @@ const startServer = async () => {
         apiBase: `http://localhost:${PORT}/api/v1`,
       });
     });
+
+    // Initialize Socket.IO on the HTTP server
+    initializeSocket(server);
 
     // Graceful shutdown handlers
     const shutdown = async (signal: string) => {
@@ -181,8 +188,8 @@ const startServer = async () => {
       logger.error('Uncaught exception — shutting down', { error: err.message, stack: err.stack });
       shutdown('uncaughtException');
     });
-  } catch (error) {
-    logger.error('Failed to start server', { error });
+  } catch (err: unknown) {
+    logger.error('Failed to start server', { error: err instanceof Error ? err.message : err });
     process.exit(1);
   }
 };

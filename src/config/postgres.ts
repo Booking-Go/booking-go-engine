@@ -3,6 +3,7 @@ import chalk from 'chalk';
 
 let pool: Pool | null = null;
 
+/** Initializes the PostgreSQL connection pool using environment variables. */
 export const connectPostgres = async (): Promise<void> => {
   try {
     pool = new Pool({
@@ -20,12 +21,13 @@ export const connectPostgres = async (): Promise<void> => {
     const client = await pool.connect();
     console.log(chalk.green('[PostgreSQL] Connected successfully'));
     client.release();
-  } catch (error) {
-    console.error(chalk.red('[PostgreSQL] Connection error:'), error);
-    throw error;
+  } catch (err: unknown) {
+    console.error(chalk.red('[PostgreSQL] Connection error:'), err);
+    throw err;
   }
 };
 
+/** Returns the active PostgreSQL `Pool`. Throws if not yet connected. */
 export const getPostgresPool = (): Pool => {
   if (!pool) {
     throw new Error('PostgreSQL pool not initialized. Call connectPostgres() first.');
@@ -33,6 +35,7 @@ export const getPostgresPool = (): Pool => {
   return pool;
 };
 
+/** Gracefully closes the PostgreSQL connection pool. */
 export const closePostgres = async (): Promise<void> => {
   if (pool) {
     await pool.end();

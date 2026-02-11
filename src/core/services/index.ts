@@ -7,3 +7,4 @@ export { bookingService } from './booking.service';
 export { reviewService } from './review.service';
 export { notificationService } from './notification.service';
 export { analyticsService } from './analytics.service';
+export { messageService } from './message.service';

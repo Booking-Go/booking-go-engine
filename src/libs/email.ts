@@ -13,6 +13,7 @@ export interface SendEmailOptions {
  * Currently a stub that logs the email. Replace with SendGrid / Resend / SES in production.
  */
 export const email = {
+  /** Send an email with the given options. Returns `true` on success. */
   async send(options: SendEmailOptions): Promise<boolean> {
     try {
       // TODO: Replace with actual email provider (SendGrid, Resend, AWS SES)
@@ -26,8 +27,8 @@ export const email = {
       }
 
       return true;
-    } catch (error) {
-      logger.error('Email send failed', { to: options.to, error });
+    } catch (err: unknown) {
+      logger.error('Email send failed', { to: options.to, error: err });
       return false;
     }
   },
