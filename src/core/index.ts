@@ -25,6 +25,7 @@ export {
   slotRepository,
   bookingRepository,
   reviewRepository,
+  analyticsRepository,
 } from './repositories';
 
 // Services (business logic layer)

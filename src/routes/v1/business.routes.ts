@@ -15,6 +15,7 @@ import {
 import { businessService } from '../../core/services/business.service';
 import { serviceService } from '../../core/services/service.service';
 import { reviewService } from '../../core/services/review.service';
+import { analyticsService } from '../../core/services/analytics.service';
 
 const router = Router();
 
@@ -224,9 +225,47 @@ router.get(
   }),
 );
 
-// GET /businesses/:id/analytics - Get business analytics (Sprint 7)
-router.get('/:id/analytics', authorize('business_owner', 'admin'), (req, res) => {
-  res.status(501).json({ message: 'Get business analytics - To be implemented in Sprint 7' });
-});
+// GET /businesses/:id/analytics - Get business analytics
+router.get(
+  '/:id/analytics',
+  authenticate,
+  authorize('business_owner', 'admin'),
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const period = (req.query.period as string) || '30d';
+    const analytics = await analyticsService.getBusinessAnalytics(
+      req.params.id,
+      req.user!.id,
+      req.user!.role,
+      period,
+    );
+    res.status(HttpStatus.OK).json({ success: true, data: analytics });
+  }),
+);
+
+// GET /businesses/:id/analytics/report - Get revenue report for export
+router.get(
+  '/:id/analytics/report',
+  authenticate,
+  authorize('business_owner', 'admin'),
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    if (!startDate || !endDate) {
+      res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'startDate and endDate query params are required' },
+      });
+      return;
+    }
+    const report = await analyticsService.getRevenueReport(
+      req.params.id,
+      req.user!.id,
+      req.user!.role,
+      startDate,
+      endDate,
+    );
+    res.status(HttpStatus.OK).json({ success: true, data: report });
+  }),
+);
 
 export default router;
