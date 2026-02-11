@@ -1,6 +1,28 @@
-import { logger } from '../../libs';
+import { logger, hash, jwt, cache, email } from '../../libs';
+import { AppError } from '../../middleware';
+import { HttpStatus, CacheKeys, CacheTTL } from '../constants';
+import { userRepository } from '../repositories';
 
 import type { RegisterInput, LoginInput } from '../validators';
+
+/**
+ * Strip sensitive fields before returning a user object to the client.
+ */
+const sanitizeUser = (row: Record<string, unknown>) => ({
+  id: row.id,
+  email: row.email,
+  firstName: row.first_name,
+  lastName: row.last_name,
+  phone: row.phone,
+  role: row.role,
+  emailVerified: row.email_verified,
+  profileImage: row.profile_image,
+  timezone: row.timezone,
+  language: row.language,
+  isActive: row.is_active,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
 
 /**
  * Auth service — business logic for authentication.
@@ -8,68 +30,231 @@ import type { RegisterInput, LoginInput } from '../validators';
  */
 export const authService = {
   async register(input: RegisterInput) {
-    // TODO: Implement in Sprint 2
-    // 1. Check if email already exists (userRepository.findByEmail)
-    // 2. Hash password (hash.hashPassword)
-    // 3. Create user (userRepository.create)
-    // 4. Send verification email (email.sendVerification)
-    // 5. Generate tokens (jwt.signAccessToken, jwt.signRefreshToken)
-    // 6. Return user + tokens
-    logger.debug('authService.register', { email: input.email });
-    throw new Error('Not implemented');
+    // 1. Check if email already exists
+    const existing = await userRepository.findByEmail(input.email);
+    if (existing) {
+      throw new AppError('Email already registered', HttpStatus.CONFLICT, 'EMAIL_EXISTS');
+    }
+
+    // 2. Hash password
+    const passwordHash = await hash.hashPassword(input.password);
+
+    // 3. Create user
+    const user = await userRepository.create({
+      email: input.email,
+      passwordHash,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone,
+      role: input.role || 'customer',
+    });
+
+    // 4. Generate tokens
+    const accessToken = jwt.signAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+    const refreshToken = jwt.signRefreshToken({
+      userId: user.id,
+      type: 'refresh',
+    });
+
+    // 5. Store refresh token in Redis
+    await cache.set(CacheKeys.refreshToken(user.id), refreshToken, CacheTTL.REFRESH_TOKEN);
+
+    // 6. Send verification email (fire-and-forget)
+    const verificationToken = jwt.generateRandomToken();
+    email.sendVerification(user.email, verificationToken).catch((err) => {
+      logger.warn('Failed to send verification email', { error: err, userId: user.id });
+    });
+
+    logger.info('User registered', { userId: user.id, role: user.role });
+
+    return {
+      user: sanitizeUser(user),
+      accessToken,
+      refreshToken,
+    };
   },
 
   async login(input: LoginInput) {
-    // TODO: Implement in Sprint 2
-    // 1. Find user by email (userRepository.findByEmail)
-    // 2. Verify password (hash.comparePassword)
-    // 3. Generate tokens
-    // 4. Store refresh token in Redis (cache.set)
-    // 5. Update last login (userRepository.updateLastLogin)
-    // 6. Log activity
-    // 7. Return user + tokens
-    logger.debug('authService.login', { email: input.email });
-    throw new Error('Not implemented');
-  },
-
-  async refreshToken(refreshToken: string) {
-    // TODO: Implement in Sprint 2
-    // 1. Verify refresh token (jwt.verifyRefreshToken)
-    // 2. Check token not blacklisted (cache.get)
-    // 3. Find user (userRepository.findById)
-    // 4. Issue new access + refresh tokens
-    // 5. Rotate refresh token in Redis
-    // 6. Return new tokens
-    logger.debug('authService.refreshToken');
-    throw new Error('Not implemented');
-  },
-
-  async logout(userId: string, refreshToken: string) {
-    // TODO: Implement in Sprint 2
-    // 1. Blacklist refresh token in Redis
-    // 2. Log activity
-    logger.debug('authService.logout', { userId });
-    throw new Error('Not implemented');
-  },
-
-  async forgotPassword(email: string) {
-    // TODO: Implement in Sprint 2
     // 1. Find user by email
-    // 2. Generate reset token (jwt.generateRandomToken)
-    // 3. Store reset token in Redis with TTL
-    // 4. Send reset email (email.sendPasswordReset)
-    logger.debug('authService.forgotPassword', { email });
-    throw new Error('Not implemented');
+    const user = await userRepository.findByEmail(input.email);
+    if (!user) {
+      throw new AppError(
+        'Invalid email or password',
+        HttpStatus.UNAUTHORIZED,
+        'INVALID_CREDENTIALS',
+      );
+    }
+
+    // 2. Check account is active
+    if (!user.is_active) {
+      throw new AppError('Account is deactivated', HttpStatus.FORBIDDEN, 'ACCOUNT_DEACTIVATED');
+    }
+
+    // 3. Verify password
+    const isMatch = await hash.comparePassword(input.password, user.password_hash);
+    if (!isMatch) {
+      throw new AppError(
+        'Invalid email or password',
+        HttpStatus.UNAUTHORIZED,
+        'INVALID_CREDENTIALS',
+      );
+    }
+
+    // 4. Generate tokens
+    const accessToken = jwt.signAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+    const refreshToken = jwt.signRefreshToken({
+      userId: user.id,
+      type: 'refresh',
+    });
+
+    // 5. Store refresh token in Redis
+    await cache.set(CacheKeys.refreshToken(user.id), refreshToken, CacheTTL.REFRESH_TOKEN);
+
+    // 6. Update last login timestamp (fire-and-forget)
+    userRepository.updateLastLogin(user.id).catch((err) => {
+      logger.warn('Failed to update last login', { error: err, userId: user.id });
+    });
+
+    logger.info('User logged in', { userId: user.id });
+
+    return {
+      user: sanitizeUser(user),
+      accessToken,
+      refreshToken,
+    };
+  },
+
+  async refreshToken(token: string) {
+    // 1. Verify refresh token
+    const payload = jwt.verifyRefreshToken(token);
+    if (!payload) {
+      throw new AppError(
+        'Invalid or expired refresh token',
+        HttpStatus.UNAUTHORIZED,
+        'INVALID_REFRESH_TOKEN',
+      );
+    }
+
+    // 2. Check token matches what's stored in Redis
+    const storedToken = await cache.get<string>(CacheKeys.refreshToken(payload.userId));
+    if (!storedToken || storedToken !== token) {
+      // Possible token reuse — invalidate all sessions for safety
+      await cache.del(CacheKeys.refreshToken(payload.userId));
+      throw new AppError(
+        'Refresh token has been revoked',
+        HttpStatus.UNAUTHORIZED,
+        'TOKEN_REVOKED',
+      );
+    }
+
+    // 3. Find user
+    const user = await userRepository.findById(payload.userId);
+    if (!user || !user.is_active) {
+      throw new AppError(
+        'User not found or deactivated',
+        HttpStatus.UNAUTHORIZED,
+        'USER_NOT_FOUND',
+      );
+    }
+
+    // 4. Issue new tokens (rotation)
+    const newAccessToken = jwt.signAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+    const newRefreshToken = jwt.signRefreshToken({
+      userId: user.id,
+      type: 'refresh',
+    });
+
+    // 5. Replace old refresh token in Redis
+    await cache.set(CacheKeys.refreshToken(user.id), newRefreshToken, CacheTTL.REFRESH_TOKEN);
+
+    logger.info('Token refreshed', { userId: user.id });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  },
+
+  async logout(userId: string) {
+    // Remove refresh token from Redis
+    await cache.del(CacheKeys.refreshToken(userId));
+    logger.info('User logged out', { userId });
+  },
+
+  async forgotPassword(emailAddress: string) {
+    // 1. Find user by email (don't reveal if email exists)
+    const user = await userRepository.findByEmail(emailAddress);
+
+    if (user) {
+      // 2. Generate reset token and store in Redis (1 hour TTL)
+      const resetToken = jwt.generateRandomToken();
+      await cache.set(`auth:password-reset:${user.id}`, resetToken, 3600);
+
+      // 3. Send reset email
+      await email.sendPasswordReset(user.email, resetToken);
+      logger.info('Password reset requested', { userId: user.id });
+    }
+
+    // Always return success to prevent email enumeration
+    return { message: 'If that email exists, a reset link has been sent.' };
   },
 
   async resetPassword(token: string, newPassword: string) {
-    // TODO: Implement in Sprint 2
-    // 1. Verify reset token from Redis
-    // 2. Hash new password
-    // 3. Update user password
-    // 4. Invalidate reset token
-    // 5. Invalidate all refresh tokens for this user
-    logger.debug('authService.resetPassword');
-    throw new Error('Not implemented');
+    // Scan Redis for token match
+    const { getRedisClient } = await import('../../config/redis');
+    const client = getRedisClient();
+    const keys = await client.keys('auth:password-reset:*');
+
+    let matchedUserId: string | null = null;
+    for (const key of keys) {
+      const storedToken = await cache.get<string>(key);
+      if (storedToken === token) {
+        // Extract userId from key pattern: auth:password-reset:{userId}
+        matchedUserId = key.replace('auth:password-reset:', '');
+        break;
+      }
+    }
+
+    if (!matchedUserId) {
+      throw new AppError(
+        'Invalid or expired reset token',
+        HttpStatus.BAD_REQUEST,
+        'INVALID_RESET_TOKEN',
+      );
+    }
+
+    // Find user
+    const user = await userRepository.findById(matchedUserId);
+    if (!user || !user.is_active) {
+      throw new AppError('User not found or deactivated', HttpStatus.BAD_REQUEST, 'USER_NOT_FOUND');
+    }
+
+    // Hash new password and update
+    const passwordHash = await hash.hashPassword(newPassword);
+    await userRepository.updatePassword(matchedUserId, passwordHash);
+
+    // Delete the reset token so it can't be reused
+    await cache.del(`auth:password-reset:${matchedUserId}`);
+
+    // Invalidate existing refresh token (force re-login)
+    await cache.del(CacheKeys.refreshToken(matchedUserId));
+
+    logger.info('Password reset successful', { userId: matchedUserId });
+
+    return {
+      message: 'Password has been reset successfully. Please log in with your new password.',
+    };
   },
 };

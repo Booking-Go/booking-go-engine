@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createBookingSchema = z.object({
   slotId: z.string().uuid(),
+  numberOfPeople: z.number().int().min(1).max(50).optional().default(1),
   notes: z.string().max(500).optional(),
 });
 

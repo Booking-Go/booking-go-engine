@@ -10,8 +10,8 @@
 
 This project is split into **two separate repositories**:
 
-1. **`booking-go-backend`** - Backend API (Node.js + Express + TypeScript)
-2. **`booking-go-frontend`** - Frontend Web App (Next.js + TypeScript)
+1. **`booking-go-engine`** - Backend API (Node.js + Express + TypeScript)
+2. **`booking-go-web`** - Frontend Web App (Next.js + TypeScript)
 
 Each repository is independently deployable and versioned.
 

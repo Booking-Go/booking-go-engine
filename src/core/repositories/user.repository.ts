@@ -39,21 +39,75 @@ export const userRepository = {
   },
 
   async update(id: string, data: Record<string, unknown>) {
-    // TODO: Implement in Sprint 3
-    logger.debug('userRepository.update', { id });
-    throw new Error('Not implemented');
+    logger.debug('userRepository.update', { id, fields: Object.keys(data) });
+
+    // Map camelCase input keys to snake_case DB columns
+    const fieldMap: Record<string, string> = {
+      firstName: 'first_name',
+      lastName: 'last_name',
+      phone: 'phone',
+      timezone: 'timezone',
+      language: 'language',
+      profileImage: 'profile_image',
+    };
+
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    for (const [key, value] of Object.entries(data)) {
+      const column = fieldMap[key];
+      if (!column) continue; // skip unknown fields
+      setClauses.push(`${column} = $${paramIndex}`);
+      values.push(value);
+      paramIndex++;
+    }
+
+    if (setClauses.length === 0) return this.findById(id);
+
+    values.push(id);
+    const { rows } = await pgPool.query(
+      `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values,
+    );
+    return rows[0] || null;
   },
 
   async delete(id: string) {
-    // TODO: Implement in Sprint 8
     logger.debug('userRepository.delete', { id });
-    throw new Error('Not implemented');
+    const { rows } = await pgPool.query(
+      'UPDATE users SET is_active = false WHERE id = $1 RETURNING *',
+      [id],
+    );
+    return rows[0] || null;
   },
 
   async findAll(page: number, limit: number) {
-    // TODO: Implement in Sprint 8
     logger.debug('userRepository.findAll', { page, limit });
-    throw new Error('Not implemented');
+    const offset = (page - 1) * limit;
+
+    const [dataResult, countResult] = await Promise.all([
+      pgPool.query(
+        `SELECT id, email, first_name, last_name, phone, role,
+                email_verified, profile_image, timezone, language,
+                is_active, last_login_at, created_at, updated_at
+         FROM users
+         ORDER BY created_at DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset],
+      ),
+      pgPool.query('SELECT COUNT(*)::int AS total FROM users'),
+    ]);
+
+    return {
+      users: dataResult.rows,
+      total: countResult.rows[0].total,
+    };
+  },
+
+  async updatePassword(id: string, passwordHash: string) {
+    logger.debug('userRepository.updatePassword', { id });
+    await pgPool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, id]);
   },
 
   async updateLastLogin(id: string) {

@@ -3,6 +3,7 @@ import chalk from 'chalk';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
 
+/** Initializes the Redis client and establishes a connection. */
 export const connectRedis = async (): Promise<void> => {
   try {
     redisClient = createClient({
@@ -13,8 +14,8 @@ export const connectRedis = async (): Promise<void> => {
       password: process.env.REDIS_PASSWORD,
     });
 
-    redisClient.on('error', (error) => {
-      console.error(chalk.red('[Redis] Client error:'), error);
+    redisClient.on('error', (err: unknown) => {
+      console.error(chalk.red('[Redis] Client error:'), err);
     });
 
     redisClient.on('connect', () => {
@@ -22,12 +23,13 @@ export const connectRedis = async (): Promise<void> => {
     });
 
     await redisClient.connect();
-  } catch (error) {
-    console.error(chalk.red('[Redis] Connection error:'), error);
-    throw error;
+  } catch (err: unknown) {
+    console.error(chalk.red('[Redis] Connection error:'), err);
+    throw err;
   }
 };
 
+/** Returns the active Redis client. Throws if not yet connected. */
 export const getRedisClient = () => {
   if (!redisClient) {
     throw new Error('Redis client not initialized. Call connectRedis() first.');
@@ -35,6 +37,7 @@ export const getRedisClient = () => {
   return redisClient;
 };
 
+/** Gracefully closes the Redis connection. */
 export const closeRedis = async (): Promise<void> => {
   if (redisClient) {
     await redisClient.quit();

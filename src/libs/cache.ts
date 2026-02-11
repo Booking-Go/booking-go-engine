@@ -13,8 +13,8 @@ export const cache = {
       const data = await redisClient.get(key);
       if (!data) return null;
       return JSON.parse(data) as T;
-    } catch (error) {
-      logger.error('Cache GET error', { key, error });
+    } catch (err: unknown) {
+      logger.error('Cache GET error', { key, error: err });
       return null;
     }
   },
@@ -26,8 +26,8 @@ export const cache = {
     try {
       const serialized = JSON.stringify(value);
       await redisClient.setEx(key, ttlSeconds, serialized);
-    } catch (error) {
-      logger.error('Cache SET error', { key, error });
+    } catch (err: unknown) {
+      logger.error('Cache SET error', { key, error: err });
     }
   },
 
@@ -37,8 +37,8 @@ export const cache = {
   async del(key: string): Promise<void> {
     try {
       await redisClient.del(key);
-    } catch (error) {
-      logger.error('Cache DEL error', { key, error });
+    } catch (err: unknown) {
+      logger.error('Cache DEL error', { key, error: err });
     }
   },
 
@@ -52,8 +52,8 @@ export const cache = {
         await redisClient.del(keys);
         logger.debug('Cache invalidated', { pattern, count: keys.length });
       }
-    } catch (error) {
-      logger.error('Cache INVALIDATE error', { pattern, error });
+    } catch (err: unknown) {
+      logger.error('Cache INVALIDATE error', { pattern, error: err });
     }
   },
 };

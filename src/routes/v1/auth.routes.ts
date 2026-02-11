@@ -1,41 +1,81 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
+
+import { asyncWrapper } from '../../libs';
+import { validate, authenticate, authRateLimiter, AuthRequest } from '../../middleware';
+import { HttpStatus } from '../../core/constants';
+import {
+  registerSchema,
+  loginSchema,
+  refreshTokenSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from '../../core/validators';
+import { authService } from '../../core/services/auth.service';
 
 const router = Router();
 
-// POST /auth/register - Register new user
-router.post('/register', (req, res) => {
-  // TODO: Implement user registration
-  res.status(501).json({ message: 'Registration endpoint - To be implemented' });
-});
+// POST /auth/register
+router.post(
+  '/register',
+  authRateLimiter,
+  validate(registerSchema, 'body'),
+  asyncWrapper(async (req, res) => {
+    const result = await authService.register(req.body);
+    res.status(HttpStatus.CREATED).json({ success: true, data: result });
+  }),
+);
 
-// POST /auth/login - User login
-router.post('/login', (req, res) => {
-  // TODO: Implement user login
-  res.status(501).json({ message: 'Login endpoint - To be implemented' });
-});
+// POST /auth/login
+router.post(
+  '/login',
+  authRateLimiter,
+  validate(loginSchema, 'body'),
+  asyncWrapper(async (req, res) => {
+    const result = await authService.login(req.body);
+    res.status(HttpStatus.OK).json({ success: true, data: result });
+  }),
+);
 
-// POST /auth/refresh - Refresh token
-router.post('/refresh', (req, res) => {
-  // TODO: Implement token refresh
-  res.status(501).json({ message: 'Refresh token endpoint - To be implemented' });
-});
+// POST /auth/refresh
+router.post(
+  '/refresh',
+  validate(refreshTokenSchema, 'body'),
+  asyncWrapper(async (req, res) => {
+    const result = await authService.refreshToken(req.body.refreshToken);
+    res.status(HttpStatus.OK).json({ success: true, data: result });
+  }),
+);
 
-// POST /auth/logout - User logout
-router.post('/logout', (req, res) => {
-  // TODO: Implement user logout
-  res.status(501).json({ message: 'Logout endpoint - To be implemented' });
-});
+// POST /auth/logout — requires authentication
+router.post(
+  '/logout',
+  authenticate,
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    await authService.logout(req.user!.id);
+    res.status(HttpStatus.OK).json({ success: true, data: { message: 'Logged out successfully' } });
+  }),
+);
 
-// POST /auth/forgot-password - Request password reset
-router.post('/forgot-password', (req, res) => {
-  // TODO: Implement forgot password
-  res.status(501).json({ message: 'Forgot password endpoint - To be implemented' });
-});
+// POST /auth/forgot-password
+router.post(
+  '/forgot-password',
+  authRateLimiter,
+  validate(forgotPasswordSchema, 'body'),
+  asyncWrapper(async (req, res) => {
+    const result = await authService.forgotPassword(req.body.email);
+    res.status(HttpStatus.OK).json({ success: true, data: result });
+  }),
+);
 
-// POST /auth/reset-password - Reset password
-router.post('/reset-password', (req, res) => {
-  // TODO: Implement reset password
-  res.status(501).json({ message: 'Reset password endpoint - To be implemented' });
-});
+// POST /auth/reset-password
+router.post(
+  '/reset-password',
+  authRateLimiter,
+  validate(resetPasswordSchema, 'body'),
+  asyncWrapper(async (req, res) => {
+    const result = await authService.resetPassword(req.body.token, req.body.password);
+    res.status(HttpStatus.OK).json({ success: true, data: result });
+  }),
+);
 
 export default router;

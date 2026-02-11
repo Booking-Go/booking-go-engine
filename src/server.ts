@@ -1,45 +1,21 @@
-import express, { Application } from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import dotenv from 'dotenv';
-import chalk from 'chalk';
+import http from 'http';
 
-import { connectPostgres, connectMongoDB, connectRedis } from './config';
-import { errorHandler, rateLimiter } from './middleware';
-import router from './routes';
+import {
+  connectPostgres,
+  connectMongoDB,
+  connectRedis,
+  closePostgres,
+  closeMongoDB,
+  closeRedis,
+} from './config';
+import { logger } from './libs';
+import { initializeSocket } from './socket';
+import app from './app';
 
-// Load environment variables
-dotenv.config();
+// ─── Server bootstrap & graceful shutdown ───────────────────────────────────
+const PORT = process.env.PORT || 8000;
+let server: http.Server;
 
-const app: Application = express();
-const PORT = process.env.PORT;
-
-// Middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN,
-  credentials: true
-}));
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Rate limiting
-app.use(rateLimiter);
-
-// Health check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
-});
-
-// API Routes (versioned)
-app.use(router);
-
-// Error handling middleware (must be last)
-app.use(errorHandler);
-
-// Initialize databases and start server
 const startServer = async () => {
   try {
     // Connect to databases
@@ -47,13 +23,55 @@ const startServer = async () => {
     await connectMongoDB();
     await connectRedis();
 
-    app.listen(PORT, () => {
-      console.log(chalk.green.bold(`\n[Server] Running on port ${PORT}`));
-      console.log(chalk.cyan(`[Server] Environment: ${process.env.NODE_ENV}`));
-      console.log(chalk.cyan(`[Server] API Base URL: http://localhost:${PORT}/api/v1\n`));
+    server = app.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT}`, {
+        environment: process.env.NODE_ENV,
+        apiBase: `http://localhost:${PORT}/api/v1`,
+      });
     });
-  } catch (error) {
-    console.error(chalk.red.bold('[Server] Failed to start:'), error);
+
+    // Initialize Socket.IO on the HTTP server
+    initializeSocket(server);
+
+    // Graceful shutdown handlers
+    const shutdown = async (signal: string) => {
+      logger.info(`${signal} received — starting graceful shutdown`);
+
+      // Stop accepting new connections
+      server.close(async () => {
+        logger.info('HTTP server closed');
+
+        try {
+          await Promise.allSettled([closePostgres(), closeMongoDB(), closeRedis()]);
+          logger.info('All database connections closed');
+          process.exit(0);
+        } catch (err) {
+          logger.error('Error during shutdown', { error: err });
+          process.exit(1);
+        }
+      });
+
+      // Force exit after 10s if graceful shutdown hangs
+      setTimeout(() => {
+        logger.error('Graceful shutdown timed out — forcing exit');
+        process.exit(1);
+      }, 10_000).unref();
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
+    // Catch unhandled rejections / exceptions
+    process.on('unhandledRejection', (reason) => {
+      logger.error('Unhandled rejection', { reason });
+    });
+
+    process.on('uncaughtException', (err) => {
+      logger.error('Uncaught exception — shutting down', { error: err.message, stack: err.stack });
+      shutdown('uncaughtException');
+    });
+  } catch (err: unknown) {
+    logger.error('Failed to start server', { error: err instanceof Error ? err.message : err });
     process.exit(1);
   }
 };

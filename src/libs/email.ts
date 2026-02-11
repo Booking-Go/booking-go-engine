@@ -1,3 +1,4 @@
+import { Resend } from 'resend';
 import { logger } from './logger';
 
 export interface SendEmailOptions {
@@ -9,25 +10,61 @@ export interface SendEmailOptions {
 }
 
 /**
+ * Resend client — initialized lazily.
+ * Requires RESEND_API_KEY env var for production.
+ * Falls back to console logging when the key is not set.
+ */
+let resendClient: Resend | null = null;
+
+const getResendClient = (): Resend | null => {
+  if (resendClient) return resendClient;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  resendClient = new Resend(apiKey);
+  return resendClient;
+};
+
+const DEFAULT_FROM = process.env.EMAIL_FROM || 'Booking.go <noreply@booking-go.com>';
+
+/**
  * Email sending utility.
- * Currently a stub that logs the email. Replace with SendGrid / Resend / SES in production.
+ * Uses Resend when RESEND_API_KEY is present, otherwise logs to console.
  */
 export const email = {
+  /** Send an email with the given options. Returns `true` on success. */
   async send(options: SendEmailOptions): Promise<boolean> {
     try {
-      // TODO: Replace with actual email provider (SendGrid, Resend, AWS SES)
-      logger.info('Email sent (stub)', {
-        to: options.to,
-        subject: options.subject,
-      });
+      const client = getResendClient();
 
-      if (process.env.NODE_ENV === 'development') {
-        logger.debug('Email content', { html: options.html });
+      if (!client) {
+        // Dev fallback — log instead of sending
+        logger.info('Email sent (dev stub — set RESEND_API_KEY to send real emails)', {
+          to: options.to,
+          subject: options.subject,
+        });
+        if (process.env.NODE_ENV === 'development') {
+          logger.debug('Email content', { html: options.html });
+        }
+        return true;
       }
 
+      const { error } = await client.emails.send({
+        from: options.from || DEFAULT_FROM,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+
+      if (error) {
+        logger.error('Resend send failed', { to: options.to, error });
+        return false;
+      }
+
+      logger.info('Email sent via Resend', { to: options.to, subject: options.subject });
       return true;
-    } catch (error) {
-      logger.error('Email send failed', { to: options.to, error });
+    } catch (err: unknown) {
+      logger.error('Email send failed', { to: options.to, error: err });
       return false;
     }
   },
