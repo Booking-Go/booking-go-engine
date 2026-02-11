@@ -82,7 +82,11 @@ export const authService = {
     // 1. Find user by email
     const user = await userRepository.findByEmail(input.email);
     if (!user) {
-      throw new AppError('Invalid email or password', HttpStatus.UNAUTHORIZED, 'INVALID_CREDENTIALS');
+      throw new AppError(
+        'Invalid email or password',
+        HttpStatus.UNAUTHORIZED,
+        'INVALID_CREDENTIALS',
+      );
     }
 
     // 2. Check account is active
@@ -93,7 +97,11 @@ export const authService = {
     // 3. Verify password
     const isMatch = await hash.comparePassword(input.password, user.password_hash);
     if (!isMatch) {
-      throw new AppError('Invalid email or password', HttpStatus.UNAUTHORIZED, 'INVALID_CREDENTIALS');
+      throw new AppError(
+        'Invalid email or password',
+        HttpStatus.UNAUTHORIZED,
+        'INVALID_CREDENTIALS',
+      );
     }
 
     // 4. Generate tokens
@@ -128,7 +136,11 @@ export const authService = {
     // 1. Verify refresh token
     const payload = jwt.verifyRefreshToken(token);
     if (!payload) {
-      throw new AppError('Invalid or expired refresh token', HttpStatus.UNAUTHORIZED, 'INVALID_REFRESH_TOKEN');
+      throw new AppError(
+        'Invalid or expired refresh token',
+        HttpStatus.UNAUTHORIZED,
+        'INVALID_REFRESH_TOKEN',
+      );
     }
 
     // 2. Check token matches what's stored in Redis
@@ -136,13 +148,21 @@ export const authService = {
     if (!storedToken || storedToken !== token) {
       // Possible token reuse — invalidate all sessions for safety
       await cache.del(CacheKeys.refreshToken(payload.userId));
-      throw new AppError('Refresh token has been revoked', HttpStatus.UNAUTHORIZED, 'TOKEN_REVOKED');
+      throw new AppError(
+        'Refresh token has been revoked',
+        HttpStatus.UNAUTHORIZED,
+        'TOKEN_REVOKED',
+      );
     }
 
     // 3. Find user
     const user = await userRepository.findById(payload.userId);
     if (!user || !user.is_active) {
-      throw new AppError('User not found or deactivated', HttpStatus.UNAUTHORIZED, 'USER_NOT_FOUND');
+      throw new AppError(
+        'User not found or deactivated',
+        HttpStatus.UNAUTHORIZED,
+        'USER_NOT_FOUND',
+      );
     }
 
     // 4. Issue new tokens (rotation)
@@ -192,10 +212,49 @@ export const authService = {
   },
 
   async resetPassword(token: string, newPassword: string) {
-    // This is a simplified implementation — in production you'd store
-    // the token-to-userId mapping. For now we use a scan approach.
-    // A better approach: encode userId in the reset URL.
-    logger.info('Password reset attempted');
-    throw new AppError('Password reset via token is not yet implemented', HttpStatus.BAD_REQUEST, 'NOT_IMPLEMENTED');
+    // Scan Redis for token match
+    const { getRedisClient } = await import('../../config/redis');
+    const client = getRedisClient();
+    const keys = await client.keys('auth:password-reset:*');
+
+    let matchedUserId: string | null = null;
+    for (const key of keys) {
+      const storedToken = await cache.get<string>(key);
+      if (storedToken === token) {
+        // Extract userId from key pattern: auth:password-reset:{userId}
+        matchedUserId = key.replace('auth:password-reset:', '');
+        break;
+      }
+    }
+
+    if (!matchedUserId) {
+      throw new AppError(
+        'Invalid or expired reset token',
+        HttpStatus.BAD_REQUEST,
+        'INVALID_RESET_TOKEN',
+      );
+    }
+
+    // Find user
+    const user = await userRepository.findById(matchedUserId);
+    if (!user || !user.is_active) {
+      throw new AppError('User not found or deactivated', HttpStatus.BAD_REQUEST, 'USER_NOT_FOUND');
+    }
+
+    // Hash new password and update
+    const passwordHash = await hash.hashPassword(newPassword);
+    await userRepository.updatePassword(matchedUserId, passwordHash);
+
+    // Delete the reset token so it can't be reused
+    await cache.del(`auth:password-reset:${matchedUserId}`);
+
+    // Invalidate existing refresh token (force re-login)
+    await cache.del(CacheKeys.refreshToken(matchedUserId));
+
+    logger.info('Password reset successful', { userId: matchedUserId });
+
+    return {
+      message: 'Password has been reset successfully. Please log in with your new password.',
+    };
   },
 };

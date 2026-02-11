@@ -31,23 +31,40 @@ router.put(
   }),
 );
 
-// GET /users/:id - Get user by ID (admin only)
-router.get('/:id', authorize('admin'), (req, res) => {
-  // TODO: Implement in Sprint 8
-  res.status(501).json({ message: 'Get user by ID - To be implemented' });
-});
-
 // GET /users - Get all users (admin only)
-router.get('/', authorize('admin'), (req, res) => {
-  // TODO: Implement in Sprint 8
-  res.status(501).json({ message: 'Get all users - To be implemented' });
-});
+router.get(
+  '/',
+  authorize('admin'),
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const page = Math.max(1, parseInt(req.query.page as string) || Pagination.DEFAULT_PAGE);
+    const limit = Math.min(
+      Pagination.MAX_LIMIT,
+      Math.max(1, parseInt(req.query.limit as string) || Pagination.DEFAULT_LIMIT),
+    );
+    const result = await userService.listUsers(page, limit);
+    res.status(HttpStatus.OK).json({ success: true, data: result.users, meta: result.meta });
+  }),
+);
 
-// DELETE /users/:id - Delete user (admin only)
-router.delete('/:id', authorize('admin'), (req, res) => {
-  // TODO: Implement in Sprint 8
-  res.status(501).json({ message: 'Delete user - To be implemented' });
-});
+// GET /users/:id - Get user by ID (admin only)
+router.get(
+  '/:id',
+  authorize('admin'),
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const user = await userService.getUserById(req.params.id);
+    res.status(HttpStatus.OK).json({ success: true, data: user });
+  }),
+);
+
+// DELETE /users/:id - Deactivate user (admin only)
+router.delete(
+  '/:id',
+  authorize('admin'),
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const user = await userService.deleteUser(req.params.id);
+    res.status(HttpStatus.OK).json({ success: true, data: user });
+  }),
+);
 
 // GET /users/me/notifications - Get user notifications
 router.get(
@@ -60,7 +77,9 @@ router.get(
     );
     const unreadOnly = req.query.unreadOnly === 'true';
     const result = await notificationService.getForUser(req.user!.id, page, limit, unreadOnly);
-    res.status(HttpStatus.OK).json({ success: true, data: result.notifications, meta: result.meta });
+    res
+      .status(HttpStatus.OK)
+      .json({ success: true, data: result.notifications, meta: result.meta });
   }),
 );
 
@@ -87,7 +106,9 @@ router.put(
   '/me/notifications/read-all',
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     await notificationService.markAllAsRead(req.user!.id);
-    res.status(HttpStatus.OK).json({ success: true, data: { message: 'All notifications marked as read' } });
+    res
+      .status(HttpStatus.OK)
+      .json({ success: true, data: { message: 'All notifications marked as read' } });
   }),
 );
 

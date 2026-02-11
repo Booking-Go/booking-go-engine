@@ -54,20 +54,35 @@ export const userService = {
   },
 
   async getUserById(userId: string) {
-    // TODO: Implement in Sprint 8 (admin)
     logger.debug('userService.getUserById', { userId });
-    throw new Error('Not implemented');
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new AppError('User not found', HttpStatus.NOT_FOUND, 'USER_NOT_FOUND');
+    }
+    return sanitizeUser(user);
   },
 
   async listUsers(page: number, limit: number) {
-    // TODO: Implement in Sprint 8 (admin)
     logger.debug('userService.listUsers', { page, limit });
-    throw new Error('Not implemented');
+    const { users, total } = await userRepository.findAll(page, limit);
+    return {
+      users: users.map(sanitizeUser),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
   async deleteUser(userId: string) {
-    // TODO: Implement in Sprint 8 (admin)
     logger.debug('userService.deleteUser', { userId });
-    throw new Error('Not implemented');
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new AppError('User not found', HttpStatus.NOT_FOUND, 'USER_NOT_FOUND');
+    }
+    const deactivated = await userRepository.delete(userId);
+    return sanitizeUser(deactivated);
   },
 };

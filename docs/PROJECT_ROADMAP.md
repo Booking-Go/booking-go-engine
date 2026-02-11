@@ -358,12 +358,12 @@ S1 (Infrastructure)
 
 | Phase   | Status         | Notes                                |
 |---------|----------------|--------------------------------------|
-| Phase 1 | IN PROGRESS | Scaffolding done, implementation next |
-| Phase 2 | NOT STARTED | Blocked on Phase 1 completion         |
-| Phase 3 | NOT STARTED | Blocked on Phase 2 completion         |
-| Phase 4 | NOT STARTED | Blocked on Phase 3 completion         |
-| Phase 5 | NOT STARTED | Can start after Phase 3 (MVP backend) |
-| Phase 6 | NOT STARTED | Blocked on Phase 5 completion         |
+| Phase 1 | COMPLETE    | Auth, JWT, refresh tokens, password reset |
+| Phase 2 | COMPLETE    | Business CRUD, services, hours, holidays |
+| Phase 3 | COMPLETE    | Booking lifecycle, slots, double-booking prevention |
+| Phase 4 | COMPLETE    | Reviews, notifications, analytics, admin endpoints |
+| Phase 5 | IN PROGRESS | Frontend app — dashboard, explore, auth pages done |
+| Phase 6 | NOT STARTED | AI features — blocked on Phase 5 completion |
 
 ---
 
