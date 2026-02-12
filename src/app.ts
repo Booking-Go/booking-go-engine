@@ -21,6 +21,8 @@ import router from './routes';
 dotenv.config();
 
 const app: Application = express();
+// Trust first proxy (Cloudflare Tunnel / reverse proxy)
+app.set('trust proxy', 1);
 
 // ─── 1. Security headers ───────────────────────────────────────────────────
 app.use(helmet());

@@ -14,7 +14,7 @@ export const connectPostgres = async (): Promise<void> => {
       password: process.env.POSTGRES_PASSWORD,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 5000,
     });
 
     // Test connection

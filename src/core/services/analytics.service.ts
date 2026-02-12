@@ -14,24 +14,35 @@ const daysAgo = (n: number): string => {
   return d.toISOString().split('T')[0];
 };
 
-/** Today's date as ISO string. */
-const todayStr = (): string => new Date().toISOString().split('T')[0];
+/**
+ * Date helper — returns ISO date string for N days from now.
+ * Booking platforms need to include upcoming scheduled appointments.
+ */
+const daysFromNow = (n: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+};
 
-/** Period presets mapped to { startDate, endDate }. */
+/**
+ * Period presets mapped to { startDate, endDate }.
+ * endDate extends into the future to capture upcoming bookings,
+ * since appointments are typically scheduled ahead of time.
+ */
 const periodToRange = (period: string): { startDate: string; endDate: string } => {
   switch (period) {
     case '7d':
-      return { startDate: daysAgo(7), endDate: todayStr() };
+      return { startDate: daysAgo(7), endDate: daysFromNow(30) };
     case '30d':
-      return { startDate: daysAgo(30), endDate: todayStr() };
+      return { startDate: daysAgo(30), endDate: daysFromNow(30) };
     case '90d':
-      return { startDate: daysAgo(90), endDate: todayStr() };
+      return { startDate: daysAgo(90), endDate: daysFromNow(30) };
     case '365d':
-      return { startDate: daysAgo(365), endDate: todayStr() };
+      return { startDate: daysAgo(365), endDate: daysFromNow(30) };
     case 'all':
-      return { startDate: '2020-01-01', endDate: todayStr() };
+      return { startDate: '2020-01-01', endDate: daysFromNow(365) };
     default:
-      return { startDate: daysAgo(30), endDate: todayStr() };
+      return { startDate: daysAgo(30), endDate: daysFromNow(30) };
   }
 };
 
@@ -62,12 +73,7 @@ export const analyticsService = {
    * @param period - Time range preset: '7d', '30d', '90d', '365d', 'all'
    * @returns Full analytics payload
    */
-  async getBusinessAnalytics(
-    businessId: string,
-    userId: string,
-    role: string,
-    period = '30d',
-  ) {
+  async getBusinessAnalytics(businessId: string, userId: string, role: string, period = '30d') {
     logger.debug('analyticsService.getBusinessAnalytics', { businessId, period });
 
     await this.verifyOwnership(businessId, userId, role);
@@ -131,36 +137,39 @@ export const analyticsService = {
     }));
 
     // Cancellation rate
-    const cancellationRate = totalBookings > 0
-      ? Math.round((statusMap.cancelled / totalBookings) * 100)
-      : 0;
+    const cancellationRate =
+      totalBookings > 0 ? Math.round((statusMap.cancelled / totalBookings) * 100) : 0;
 
     // Completion rate
-    const completionRate = totalBookings > 0
-      ? Math.round((statusMap.completed / totalBookings) * 100)
-      : 0;
+    const completionRate =
+      totalBookings > 0 ? Math.round((statusMap.completed / totalBookings) * 100) : 0;
 
     // Compare with previous period for growth calculation
-    const dayCount = Math.max(1, Math.round(
-      (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000,
-    ));
+    const dayCount = Math.max(
+      1,
+      Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000),
+    );
     const prevStart = daysAgo(dayCount * 2);
     const prevEnd = startDate;
 
-    const prevRevenue = await analyticsRepository.getRevenueSummary(
-      businessId, prevStart, prevEnd,
-    );
+    const prevRevenue = await analyticsRepository.getRevenueSummary(businessId, prevStart, prevEnd);
     const currentRev = Number(revenueSummary.total_revenue);
     const previousRev = Number(prevRevenue.total_revenue);
-    const revenueGrowth = previousRev > 0
-      ? Math.round(((currentRev - previousRev) / previousRev) * 100)
-      : currentRev > 0 ? 100 : 0;
+    const revenueGrowth =
+      previousRev > 0
+        ? Math.round(((currentRev - previousRev) / previousRev) * 100)
+        : currentRev > 0
+          ? 100
+          : 0;
 
     const currentBookings = revenueSummary.total_bookings;
     const previousBookings = prevRevenue.total_bookings;
-    const bookingGrowth = previousBookings > 0
-      ? Math.round(((currentBookings - previousBookings) / previousBookings) * 100)
-      : currentBookings > 0 ? 100 : 0;
+    const bookingGrowth =
+      previousBookings > 0
+        ? Math.round(((currentBookings - previousBookings) / previousBookings) * 100)
+        : currentBookings > 0
+          ? 100
+          : 0;
 
     const result = {
       period: { startDate, endDate, label: period },

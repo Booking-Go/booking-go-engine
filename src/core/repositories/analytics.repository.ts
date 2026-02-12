@@ -9,12 +9,12 @@ export const analyticsRepository = {
   /**
    * Get booking counts grouped by status for a business within a date range.
    */
-  async getBookingCountsByStatus(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
-    logger.debug('analyticsRepository.getBookingCountsByStatus', { businessId, startDate, endDate });
+  async getBookingCountsByStatus(businessId: string, startDate: string, endDate: string) {
+    logger.debug('analyticsRepository.getBookingCountsByStatus', {
+      businessId,
+      startDate,
+      endDate,
+    });
     const { rows } = await pgPool.query(
       `SELECT
          status,
@@ -32,11 +32,7 @@ export const analyticsRepository = {
   /**
    * Get total revenue and booking count for a business within a date range.
    */
-  async getRevenueSummary(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  async getRevenueSummary(businessId: string, startDate: string, endDate: string) {
     logger.debug('analyticsRepository.getRevenueSummary', { businessId, startDate, endDate });
     const { rows } = await pgPool.query(
       `SELECT
@@ -60,11 +56,7 @@ export const analyticsRepository = {
   /**
    * Get daily revenue and booking counts for a trend chart.
    */
-  async getDailyRevenueTrend(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  async getDailyRevenueTrend(businessId: string, startDate: string, endDate: string) {
     logger.debug('analyticsRepository.getDailyRevenueTrend', { businessId, startDate, endDate });
     const { rows } = await pgPool.query(
       `SELECT
@@ -86,11 +78,7 @@ export const analyticsRepository = {
   /**
    * Get monthly revenue and booking counts for a longer-term trend.
    */
-  async getMonthlyRevenueTrend(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  async getMonthlyRevenueTrend(businessId: string, startDate: string, endDate: string) {
     logger.debug('analyticsRepository.getMonthlyRevenueTrend', { businessId, startDate, endDate });
     const { rows } = await pgPool.query(
       `SELECT
@@ -112,12 +100,7 @@ export const analyticsRepository = {
   /**
    * Get top services by booking count and revenue.
    */
-  async getTopServices(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-    limit = 10,
-  ) {
+  async getTopServices(businessId: string, startDate: string, endDate: string, limit = 10) {
     logger.debug('analyticsRepository.getTopServices', { businessId, startDate, endDate });
     const { rows } = await pgPool.query(
       `SELECT
@@ -147,11 +130,7 @@ export const analyticsRepository = {
   /**
    * Get peak booking hours (hour of day distribution).
    */
-  async getPeakHours(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  async getPeakHours(businessId: string, startDate: string, endDate: string) {
     logger.debug('analyticsRepository.getPeakHours', { businessId, startDate, endDate });
     const { rows } = await pgPool.query(
       `SELECT
@@ -172,15 +151,13 @@ export const analyticsRepository = {
   /**
    * Get unique customer count and new vs returning breakdown.
    */
-  async getCustomerMetrics(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  async getCustomerMetrics(businessId: string, startDate: string, endDate: string) {
     logger.debug('analyticsRepository.getCustomerMetrics', { businessId, startDate, endDate });
 
     // Total unique customers in period
-    const { rows: [totalRow] } = await pgPool.query(
+    const {
+      rows: [totalRow],
+    } = await pgPool.query(
       `SELECT COUNT(DISTINCT customer_id)::int AS unique_customers
        FROM bookings
        WHERE business_id = $1
@@ -190,7 +167,9 @@ export const analyticsRepository = {
     );
 
     // New customers: first booking ever at this business is within the period
-    const { rows: [newRow] } = await pgPool.query(
+    const {
+      rows: [newRow],
+    } = await pgPool.query(
       `SELECT COUNT(*)::int AS new_customers
        FROM (
          SELECT customer_id, MIN(booking_date) AS first_booking
@@ -206,7 +185,7 @@ export const analyticsRepository = {
     const newCust = newRow?.new_customers ?? 0;
 
     return {
-      uniqueCustomers: unique,
+      totalCustomers: unique,
       newCustomers: newCust,
       returningCustomers: Math.max(0, unique - newCust),
     };
@@ -215,11 +194,7 @@ export const analyticsRepository = {
   /**
    * Get review stats for a business within a date range.
    */
-  async getReviewStats(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  async getReviewStats(businessId: string, startDate: string, endDate: string) {
     logger.debug('analyticsRepository.getReviewStats', { businessId, startDate, endDate });
     const { rows } = await pgPool.query(
       `SELECT
@@ -272,13 +247,11 @@ export const analyticsRepository = {
   /**
    * Get slot occupancy rate for a business.
    */
-  async getOccupancyRate(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  async getOccupancyRate(businessId: string, startDate: string, endDate: string) {
     logger.debug('analyticsRepository.getOccupancyRate', { businessId, startDate, endDate });
-    const { rows: [row] } = await pgPool.query(
+    const {
+      rows: [row],
+    } = await pgPool.query(
       `SELECT
          COUNT(*)::int AS total_slots,
          COUNT(*) FILTER (WHERE booked_count > 0)::int AS booked_slots
@@ -300,11 +273,7 @@ export const analyticsRepository = {
   /**
    * Get booking count by day of week.
    */
-  async getBookingsByDayOfWeek(
-    businessId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  async getBookingsByDayOfWeek(businessId: string, startDate: string, endDate: string) {
     logger.debug('analyticsRepository.getBookingsByDayOfWeek', { businessId, startDate, endDate });
     const { rows } = await pgPool.query(
       `SELECT

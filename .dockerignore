@@ -1,0 +1,17 @@
+node_modules
+dist
+npm-debug.log*
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+*.md
+docker-compose*.yml
+init/
+scripts/
+src/__tests__/
+jest.config.ts
+.eslintrc*
+.prettierrc*
+.husky
