@@ -2,13 +2,15 @@ import { logger } from '../../libs';
 import { AppError } from '../../middleware/errorHandler';
 import { HttpStatus, NotificationType, Pagination } from '../constants';
 import { Notification } from '../../models';
+import { pushService } from './push.service';
 
 /**
- * Notification service — creates and queries in-app notifications (MongoDB).
+ * Notification service — creates in-app notifications (MongoDB) and
+ * dispatches push notifications via FCM.
  */
 export const notificationService = {
   /**
-   * Creates a new notification document.
+   * Creates a new notification document and sends a push notification.
    * @param data - Notification payload.
    * @returns The created notification document.
    */
@@ -29,6 +31,24 @@ export const notificationService = {
       data: data.metadata,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
     });
+
+    // Send push notification (best-effort, non-blocking)
+    pushService
+      .sendToUser(data.userId, {
+        title: data.title,
+        body: data.message,
+        data: {
+          type: data.type,
+          notificationId: notification._id?.toString() ?? '',
+          ...(data.metadata
+            ? Object.fromEntries(Object.entries(data.metadata).map(([k, v]) => [k, String(v)]))
+            : {}),
+        },
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        logger.warn(`Push notification failed (non-fatal): ${msg}`);
+      });
 
     return notification;
   },
@@ -122,9 +142,6 @@ export const notificationService = {
    */
   async markAllAsRead(userId: string) {
     logger.debug('notificationService.markAllAsRead', { userId });
-    await Notification.updateMany(
-      { userId, isRead: false },
-      { isRead: true, readAt: new Date() },
-    );
+    await Notification.updateMany({ userId, isRead: false }, { isRead: true, readAt: new Date() });
   },
 };

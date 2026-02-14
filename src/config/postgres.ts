@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import chalk from 'chalk';
+import { logger } from '../libs';
 
 let pool: Pool | null = null;
 
@@ -15,14 +16,21 @@ export const connectPostgres = async (): Promise<void> => {
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+    });
+
+    // Handle pool-level errors to prevent silent connection drops.
+    pool.on('error', (err) => {
+      logger.error(`[PostgreSQL] Pool error: ${err.message}`);
     });
 
     // Test connection
     const client = await pool.connect();
-    console.log(chalk.green('[PostgreSQL] Connected successfully'));
+    logger.info(chalk.green('[PostgreSQL] Connected successfully'));
     client.release();
   } catch (err: unknown) {
-    console.error(chalk.red('[PostgreSQL] Connection error:'), err);
+    logger.error(`${chalk.red('[PostgreSQL] Connection error:')} ${err}`);
     throw err;
   }
 };
@@ -39,6 +47,6 @@ export const getPostgresPool = (): Pool => {
 export const closePostgres = async (): Promise<void> => {
   if (pool) {
     await pool.end();
-    console.log('PostgreSQL connection closed');
+    logger.info('PostgreSQL connection closed');
   }
 };

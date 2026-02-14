@@ -1,7 +1,6 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 
@@ -10,11 +9,11 @@ import {
   errorHandler,
   rateLimiter,
   requestId,
+  requestLogger,
   sanitize,
   notFoundHandler,
   activityLogger,
 } from './middleware';
-import { logger } from './libs';
 import router from './routes';
 
 // ─── Bootstrap ──────────────────────────────────────────────────────────────
@@ -30,7 +29,7 @@ app.use(helmet());
 // ─── 2. CORS ────────────────────────────────────────────────────────────────
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: process.env.CORS_ORIGIN === '*' ? true : process.env.CORS_ORIGIN,
     credentials: true,
   }),
 );
@@ -38,13 +37,8 @@ app.use(
 // ─── 3. Request ID (correlation) ────────────────────────────────────────────
 app.use(requestId);
 
-// ─── 4. HTTP request logging (attach requestId to morgan tokens) ────────────
-morgan.token('request-id', (req) => (req as express.Request).requestId);
-app.use(
-  morgan(':method :url :status :response-time ms - :request-id', {
-    stream: { write: (msg: string) => logger.http(msg.trim()) },
-  }),
-);
+// ─── 4. HTTP request logging (colorized) ───────────────────────────────────
+app.use(requestLogger);
 
 // ─── 5. Body parsing ───────────────────────────────────────────────────────
 app.use(express.json({ limit: '10kb' }));

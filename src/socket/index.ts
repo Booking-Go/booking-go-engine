@@ -1,10 +1,12 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
+import chalk from 'chalk';
 
 import { jwt } from '../libs';
 import { logger } from '../libs';
 import { messageService } from '../core/services/message.service';
 import { sendMessageSchema } from '../core/validators';
+import { Conversation } from '../models';
 
 /** Authenticated socket with user info attached after handshake. */
 interface AuthenticatedSocket extends Socket {
@@ -36,7 +38,10 @@ export const getIO = (): Server => {
 export const initializeSocket = (httpServer: HttpServer): Server => {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      origin:
+        process.env.CORS_ORIGIN === '*'
+          ? true // reflect requesting origin (wildcard + credentials is invalid per spec)
+          : process.env.CORS_ORIGIN,
       credentials: true,
     },
     pingInterval: 25_000,
@@ -70,6 +75,7 @@ export const initializeSocket = (httpServer: HttpServer): Server => {
     const { user } = socket;
 
     logger.info('Socket connected', { userId: user.id, socketId: socket.id });
+    logSocket('connect', user.id, socket.id);
 
     // Track online users
     if (!onlineUsers.has(user.id)) {
@@ -83,13 +89,13 @@ export const initializeSocket = (httpServer: HttpServer): Server => {
     // ── Event: join a conversation room ──
     socket.on('conversation:join', (conversationId: string) => {
       socket.join(`conversation:${conversationId}`);
-      logger.debug('User joined conversation room', { userId: user.id, conversationId });
+      logSocket('conversation:join', user.id, socket.id, { conversationId });
     });
 
     // ── Event: leave a conversation room ──
     socket.on('conversation:leave', (conversationId: string) => {
       socket.leave(`conversation:${conversationId}`);
-      logger.debug('User left conversation room', { userId: user.id, conversationId });
+      logSocket('conversation:leave', user.id, socket.id, { conversationId });
     });
 
     // ── Event: send message ──
@@ -115,12 +121,10 @@ export const initializeSocket = (httpServer: HttpServer): Server => {
 
           // Also emit to user rooms of both parties for conversation list updates
           // (in case they're not in the conversation room)
-          const { Conversation } = require('../models');
           const conv = await Conversation.findById(data.conversationId).lean();
           if (conv) {
-            const otherUserId = user.id === conv.customerId
-              ? conv.businessOwnerId
-              : conv.customerId;
+            const otherUserId =
+              user.id === conv.customerId ? conv.businessOwnerId : conv.customerId;
 
             io.to(`user:${otherUserId}`).emit('conversation:updated', {
               conversationId: data.conversationId,
@@ -131,6 +135,7 @@ export const initializeSocket = (httpServer: HttpServer): Server => {
           }
 
           if (callback) callback({ success: true, data: message });
+          logSocket('message:send', user.id, socket.id, { conversationId: data.conversationId });
         } catch (err: unknown) {
           const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
           logger.error('Socket message:send error', { userId: user.id, error: errorMessage });
@@ -145,6 +150,7 @@ export const initializeSocket = (httpServer: HttpServer): Server => {
         userId: user.id,
         isTyping: data.isTyping,
       });
+      logSocket('message:typing', user.id, socket.id, { typing: data.isTyping });
     });
 
     // ── Event: mark conversation as read ──
@@ -164,6 +170,7 @@ export const initializeSocket = (httpServer: HttpServer): Server => {
     // ── Disconnect ──
     socket.on('disconnect', (reason) => {
       logger.info('Socket disconnected', { userId: user.id, socketId: socket.id, reason });
+      logSocket('disconnect', user.id, socket.id, { reason });
 
       const sockets = onlineUsers.get(user.id);
       if (sockets) {
@@ -177,4 +184,33 @@ export const initializeSocket = (httpServer: HttpServer): Server => {
 
   logger.info('Socket.IO server initialized');
   return io;
+};
+
+/**
+ * Prints a colorized WebSocket event log line to stdout.
+ * Format:  ⚡ EVENT_NAME  userId  socketId  {meta}
+ */
+const logSocket = (
+  event: string,
+  userId: string,
+  socketId: string,
+  meta?: Record<string, unknown>,
+): void => {
+  const icon = chalk.magenta('⚡');
+  const eventStr = colorEvent(event.padEnd(22));
+  const userStr = chalk.dim(`user:${userId.slice(0, 8)}`);
+  const sockStr = chalk.dim(`sock:${socketId.slice(0, 8)}`);
+  const metaStr = meta ? chalk.gray(JSON.stringify(meta)) : '';
+
+  process.stdout.write(`  ${icon} ${eventStr} ${userStr}  ${sockStr}  ${metaStr}\n`);
+};
+
+/** Color-code socket event names by category */
+const colorEvent = (event: string): string => {
+  const e = event.trim();
+  if (e === 'connect') return chalk.green.bold(event);
+  if (e === 'disconnect') return chalk.red.bold(event);
+  if (e.startsWith('message:')) return chalk.yellow(event);
+  if (e.startsWith('conversation:')) return chalk.cyan(event);
+  return chalk.white(event);
 };

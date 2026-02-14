@@ -73,17 +73,35 @@ export const analyticsService = {
    * @param period - Time range preset: '7d', '30d', '90d', '365d', 'all'
    * @returns Full analytics payload
    */
-  async getBusinessAnalytics(businessId: string, userId: string, role: string, period = '30d') {
-    logger.debug('analyticsService.getBusinessAnalytics', { businessId, period });
+  async getBusinessAnalytics(
+    businessId: string,
+    userId: string,
+    role: string,
+    period = '30d',
+    customStartDate?: string,
+    customEndDate?: string,
+  ) {
+    logger.debug('analyticsService.getBusinessAnalytics', {
+      businessId,
+      period,
+      customStartDate,
+      customEndDate,
+    });
 
     await this.verifyOwnership(businessId, userId, role);
 
-    // Check cache
-    const cacheKey = `${CacheKeys.businessAnalytics(businessId)}:${period}`;
+    // Use custom date range when provided, otherwise fall back to period preset
+    const { startDate, endDate } =
+      customStartDate && customEndDate
+        ? { startDate: customStartDate, endDate: customEndDate }
+        : periodToRange(period);
+
+    // Check cache — include date range in key for custom ranges
+    const rangeKey =
+      customStartDate && customEndDate ? `${customStartDate}_${customEndDate}` : period;
+    const cacheKey = `${CacheKeys.businessAnalytics(businessId)}:${rangeKey}`;
     const cached = await cache.get(cacheKey);
     if (cached) return cached;
-
-    const { startDate, endDate } = periodToRange(period);
 
     // Run all queries in parallel
     const [

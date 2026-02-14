@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 
 import { asyncWrapper } from '../../libs';
@@ -19,13 +19,47 @@ import { analyticsService } from '../../core/services/analytics.service';
 
 const router = Router();
 
-// All routes require authentication
-router.use(authenticate);
+// ─── Public routes (no auth required) ──────────────────────────
+// These are read-only browse endpoints accessible to all visitors.
 
-// GET /businesses - Get all businesses (with filters & pagination)
+// GET /businesses/nearby?lat=...&lng=...&radius=...&page=...&limit=...
+router.get(
+  '/nearby',
+  asyncWrapper(async (req: Request, res: Response) => {
+    const lat = parseFloat(req.query.lat as string);
+    const lng = parseFloat(req.query.lng as string);
+
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        error: {
+          code: 'INVALID_COORDINATES',
+          message: 'Valid lat (-90 to 90) and lng (-180 to 180) are required',
+        },
+      });
+      return;
+    }
+
+    const radiusKm = Math.min(100, Math.max(1, parseFloat(req.query.radius as string) || 25));
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(
+      Pagination.MAX_LIMIT,
+      Math.max(1, parseInt(req.query.limit as string) || 12),
+    );
+
+    const filters: Record<string, unknown> = {};
+    if (req.query.category) filters.category = req.query.category;
+    if (req.query.search) filters.search = req.query.search;
+
+    const result = await businessService.nearby(lat, lng, radiusKm, page, limit, filters);
+    res.status(HttpStatus.OK).json({ success: true, data: result.businesses, meta: result.meta });
+  }),
+);
+
+// GET /businesses - List all businesses (with filters & pagination)
 router.get(
   '/',
-  asyncWrapper(async (req: AuthRequest, res: Response) => {
+  asyncWrapper(async (req: Request, res: Response) => {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(
       Pagination.MAX_LIMIT,
@@ -43,6 +77,70 @@ router.get(
   }),
 );
 
+// GET /businesses/slug/:slug - Get business by slug (public profile)
+router.get(
+  '/slug/:slug',
+  asyncWrapper(async (req: Request, res: Response) => {
+    const business = await businessService.getBySlug(req.params.slug);
+    res.status(HttpStatus.OK).json({ success: true, data: business });
+  }),
+);
+
+// GET /businesses/:id - Get business by ID (public profile)
+router.get(
+  '/:id',
+  asyncWrapper(async (req: Request, res: Response) => {
+    const business = await businessService.getById(req.params.id);
+    res.status(HttpStatus.OK).json({ success: true, data: business });
+  }),
+);
+
+// GET /businesses/:id/hours - Get business hours
+router.get(
+  '/:id/hours',
+  asyncWrapper(async (req: Request, res: Response) => {
+    const hours = await businessService.getHours(req.params.id);
+    res.status(HttpStatus.OK).json({ success: true, data: hours });
+  }),
+);
+
+// GET /businesses/:id/services - Get services for a business
+router.get(
+  '/:id/services',
+  asyncWrapper(async (req: Request, res: Response) => {
+    const services = await serviceService.getByBusinessId(req.params.id);
+    res.status(HttpStatus.OK).json({ success: true, data: services });
+  }),
+);
+
+// GET /businesses/:id/services/:serviceId - Get a single service
+router.get(
+  '/:id/services/:serviceId',
+  asyncWrapper(async (req: Request, res: Response) => {
+    const service = await serviceService.getById(req.params.serviceId);
+    res.status(HttpStatus.OK).json({ success: true, data: service });
+  }),
+);
+
+// GET /businesses/:id/reviews - Get published reviews for a business
+router.get(
+  '/:id/reviews',
+  asyncWrapper(async (req: Request, res: Response) => {
+    const page = Math.max(1, parseInt(req.query.page as string) || Pagination.DEFAULT_PAGE);
+    const limit = Math.min(
+      Pagination.MAX_LIMIT,
+      Math.max(1, parseInt(req.query.limit as string) || Pagination.DEFAULT_LIMIT),
+    );
+    const result = await reviewService.getByBusinessId(req.params.id, page, limit);
+    res.status(HttpStatus.OK).json({ success: true, data: result.reviews, meta: result.meta });
+  }),
+);
+
+// ─── Authenticated routes ──────────────────────────────────────
+// All routes below require authentication.
+
+router.use(authenticate);
+
 // GET /businesses/mine - Get businesses owned by current user
 router.get(
   '/mine',
@@ -50,24 +148,6 @@ router.get(
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const businesses = await businessService.getMyBusinesses(req.user!.id);
     res.status(HttpStatus.OK).json({ success: true, data: businesses });
-  }),
-);
-
-// GET /businesses/:id - Get business by ID
-router.get(
-  '/:id',
-  asyncWrapper(async (req: AuthRequest, res: Response) => {
-    const business = await businessService.getById(req.params.id);
-    res.status(HttpStatus.OK).json({ success: true, data: business });
-  }),
-);
-
-// GET /businesses/slug/:slug - Get business by slug
-router.get(
-  '/slug/:slug',
-  asyncWrapper(async (req: AuthRequest, res: Response) => {
-    const business = await businessService.getBySlug(req.params.slug);
-    res.status(HttpStatus.OK).json({ success: true, data: business });
   }),
 );
 
@@ -103,16 +183,7 @@ router.delete(
   }),
 );
 
-// --- Business Hours ---
-
-// GET /businesses/:id/hours - Get business hours
-router.get(
-  '/:id/hours',
-  asyncWrapper(async (req: AuthRequest, res: Response) => {
-    const hours = await businessService.getHours(req.params.id);
-    res.status(HttpStatus.OK).json({ success: true, data: hours });
-  }),
-);
+// --- Business Hours (write) ---
 
 // PUT /businesses/:id/hours - Set business hours (replace all)
 router.put(
@@ -157,16 +228,7 @@ router.delete(
   }),
 );
 
-// --- Services ---
-
-// GET /businesses/:id/services - Get services for a business
-router.get(
-  '/:id/services',
-  asyncWrapper(async (req: AuthRequest, res: Response) => {
-    const services = await serviceService.getByBusinessId(req.params.id);
-    res.status(HttpStatus.OK).json({ success: true, data: services });
-  }),
-);
+// --- Services (write) ---
 
 // POST /businesses/:id/services - Create a service
 router.post(
@@ -176,15 +238,6 @@ router.post(
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const service = await serviceService.create(req.params.id, req.user!.id, req.body);
     res.status(HttpStatus.CREATED).json({ success: true, data: service });
-  }),
-);
-
-// GET /businesses/:id/services/:serviceId - Get a single service
-router.get(
-  '/:id/services/:serviceId',
-  asyncWrapper(async (req: AuthRequest, res: Response) => {
-    const service = await serviceService.getById(req.params.serviceId);
-    res.status(HttpStatus.OK).json({ success: true, data: service });
   }),
 );
 
@@ -209,22 +262,6 @@ router.delete(
   }),
 );
 
-// --- Reviews ---
-
-// GET /businesses/:id/reviews - Get published reviews for a business
-router.get(
-  '/:id/reviews',
-  asyncWrapper(async (req: AuthRequest, res: Response) => {
-    const page = Math.max(1, parseInt(req.query.page as string) || Pagination.DEFAULT_PAGE);
-    const limit = Math.min(
-      Pagination.MAX_LIMIT,
-      Math.max(1, parseInt(req.query.limit as string) || Pagination.DEFAULT_LIMIT),
-    );
-    const result = await reviewService.getByBusinessId(req.params.id, page, limit);
-    res.status(HttpStatus.OK).json({ success: true, data: result.reviews, meta: result.meta });
-  }),
-);
-
 // GET /businesses/:id/analytics - Get business analytics
 router.get(
   '/:id/analytics',
@@ -232,11 +269,15 @@ router.get(
   authorize('business_owner', 'admin'),
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const period = (req.query.period as string) || '30d';
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
     const analytics = await analyticsService.getBusinessAnalytics(
       req.params.id,
       req.user!.id,
       req.user!.role,
       period,
+      startDate,
+      endDate,
     );
     res.status(HttpStatus.OK).json({ success: true, data: analytics });
   }),
@@ -253,7 +294,10 @@ router.get(
     if (!startDate || !endDate) {
       res.status(HttpStatus.BAD_REQUEST).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'startDate and endDate query params are required' },
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'startDate and endDate query params are required',
+        },
       });
       return;
     }

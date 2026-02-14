@@ -6,6 +6,10 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Enable geo-distance extensions (for nearby business queries)
+CREATE EXTENSION IF NOT EXISTS cube;
+CREATE EXTENSION IF NOT EXISTS earthdistance;
+
 -- Users
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

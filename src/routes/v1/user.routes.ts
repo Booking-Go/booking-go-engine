@@ -6,6 +6,7 @@ import { HttpStatus, Pagination } from '../../core/constants';
 import { updateUserSchema } from '../../core/validators';
 import { userService } from '../../core/services/user.service';
 import { notificationService } from '../../core/services/notification.service';
+import { pushService } from '../../core/services/push.service';
 
 const router = Router();
 
@@ -109,6 +110,48 @@ router.put(
     res
       .status(HttpStatus.OK)
       .json({ success: true, data: { message: 'All notifications marked as read' } });
+  }),
+);
+
+// ─── Push notification (FCM) token management ───────────────────────────────
+
+// POST /users/me/device-tokens - Register an FCM device token
+router.post(
+  '/me/device-tokens',
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const { token, deviceType, userAgent } = req.body;
+    if (!token || typeof token !== 'string') {
+      res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'token is required' },
+      });
+      return;
+    }
+    await pushService.registerToken(req.user!.id, token, deviceType || 'web', userAgent);
+    res.status(HttpStatus.OK).json({
+      success: true,
+      data: { message: 'Device token registered' },
+    });
+  }),
+);
+
+// DELETE /users/me/device-tokens - Unregister an FCM device token
+router.delete(
+  '/me/device-tokens',
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const { token } = req.body;
+    if (!token || typeof token !== 'string') {
+      res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'token is required' },
+      });
+      return;
+    }
+    await pushService.unregisterToken(req.user!.id, token);
+    res.status(HttpStatus.OK).json({
+      success: true,
+      data: { message: 'Device token unregistered' },
+    });
   }),
 );
 

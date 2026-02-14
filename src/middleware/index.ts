@@ -6,5 +6,6 @@ export { validate } from './validate';
 export { sanitize } from './sanitize';
 export { notFoundHandler } from './notFound';
 export { activityLogger } from './activityLogger';
+export { requestLogger } from './requestLogger';
 
 export type { AuthRequest } from './auth';

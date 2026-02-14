@@ -22,8 +22,8 @@ import pg from 'pg';
 import mongoose from 'mongoose';
 
 // ─── Config ─────────────────────────────────────────────
-const PG_URI = 'postgresql://postgres:postgres@localhost:5432/booking_go';
-const MONGO_URI = 'mongodb://mongo:mongo@localhost:27017/booking_go?authSource=admin';
+const PG_URI = process.env.PG_URI || 'postgresql://booking_admin:booking_pg_secret@localhost:5433/booking_go';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://booking_admin:booking_mongo_secret@localhost:27018/booking_go?authSource=admin';
 const SALT_ROUNDS = 12;
 const PASSWORD = 'Hello@123';
 
@@ -48,8 +48,8 @@ const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
 // ─── IDs ────────────────────────────────────────────────
 // Existing accounts (keep same email, generate IDs for seed)
-const CUSTOMER_1_ID = uuid(); // razashahid532@gmail.com
-const OWNER_1_ID = uuid(); // cusat.shahid@gmail.com
+const CUSTOMER_1_ID = uuid(); // booking@co.com
+const OWNER_1_ID = uuid(); // booking@go.com
 
 // Additional customers
 const CUSTOMER_2_ID = uuid();
@@ -104,8 +104,8 @@ async function main() {
     console.log('👤 Seeding users...');
     const users = [
       // Primary test accounts
-      [CUSTOMER_1_ID, 'razashahid532@gmail.com', passwordHash, 'Shahid', 'Raza', '+919876543210', 'customer', true],
-      [OWNER_1_ID, 'cusat.shahid@gmail.com', passwordHash, 'Shahid', 'Khan', '+919876543211', 'business_owner', true],
+      [CUSTOMER_1_ID, 'booking@co.com', passwordHash, 'Shahid', 'Raza', '+919876543210', 'customer', true],
+      [OWNER_1_ID, 'booking@go.com', passwordHash, 'Shahid', 'Khan', '+919876543211', 'business_owner', true],
       // Additional customers
       [CUSTOMER_2_ID, 'priya.sharma@example.com', passwordHash, 'Priya', 'Sharma', '+919876543212', 'customer', true],
       [CUSTOMER_3_ID, 'rahul.verma@example.com', passwordHash, 'Rahul', 'Verma', '+919876543213', 'customer', true],
@@ -415,7 +415,7 @@ async function main() {
     console.log('📋 Seeding bookings...');
     const allCustomers = [CUSTOMER_1_ID, CUSTOMER_2_ID, CUSTOMER_3_ID, CUSTOMER_4_ID, CUSTOMER_5_ID, CUSTOMER_6_ID];
     const customerNames: Record<string, { first: string; last: string; email: string; phone: string }> = {
-      [CUSTOMER_1_ID]: { first: 'Shahid', last: 'Raza', email: 'razashahid532@gmail.com', phone: '+919876543210' },
+      [CUSTOMER_1_ID]: { first: 'Shahid', last: 'Raza', email: 'booking@co.com', phone: '+919876543210' },
       [CUSTOMER_2_ID]: { first: 'Priya', last: 'Sharma', email: 'priya.sharma@example.com', phone: '+919876543212' },
       [CUSTOMER_3_ID]: { first: 'Rahul', last: 'Verma', email: 'rahul.verma@example.com', phone: '+919876543213' },
       [CUSTOMER_4_ID]: { first: 'Anita', last: 'Patel', email: 'anita.patel@example.com', phone: '+919876543214' },
@@ -900,8 +900,8 @@ async function main() {
     console.log('\n🎉 Seed complete! All databases populated.\n');
     console.log('─────────────────────────────────────────────');
     console.log('Test Accounts:');
-    console.log('  Customer:       razashahid532@gmail.com / Hello@123');
-    console.log('  Business Owner: cusat.shahid@gmail.com  / Hello@123');
+    console.log('  Customer:       booking@co.com / Hello@123');
+    console.log('  Business Owner: booking@go.com / Hello@123');
     console.log('─────────────────────────────────────────────\n');
   } catch (err) {
     console.error('❌ Seed failed:', err);

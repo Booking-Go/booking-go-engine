@@ -88,6 +88,81 @@ export const businessRepository = {
     return { data: rows, total, page, limit };
   },
 
+  /**
+   * Finds active businesses near a given location, sorted by distance.
+   * Uses PostgreSQL earthdistance extension for calculations.
+   * @param lat - Latitude of the search origin.
+   * @param lng - Longitude of the search origin.
+   * @param radiusKm - Maximum search radius in kilometres.
+   * @param page - Page number (1-based).
+   * @param limit - Results per page.
+   * @param filters - Optional filters (category, search).
+   */
+  async findNearby(
+    lat: number,
+    lng: number,
+    radiusKm: number,
+    page: number,
+    limit: number,
+    filters: Record<string, unknown> = {},
+  ) {
+    logger.debug('businessRepository.findNearby', { lat, lng, radiusKm, page, limit });
+
+    const conditions: string[] = [
+      'is_active = true',
+      'latitude IS NOT NULL',
+      'longitude IS NOT NULL',
+    ];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    // Geo params
+    values.push(lat, lng);
+    const latParam = paramIndex++;
+    const lngParam = paramIndex++;
+
+    // Distance filter (convert km → metres for earth_distance)
+    values.push(radiusKm * 1000);
+    const radiusParam = paramIndex++;
+    conditions.push(
+      `earth_distance(ll_to_earth(latitude::float, longitude::float), ll_to_earth($${latParam}, $${lngParam})) <= $${radiusParam}`,
+    );
+
+    if (filters.category) {
+      conditions.push(`category = $${paramIndex}`);
+      values.push(filters.category);
+      paramIndex++;
+    }
+    if (filters.search) {
+      conditions.push(`(name ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`);
+      values.push(`%${filters.search}%`);
+      paramIndex++;
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const distanceExpr = `earth_distance(ll_to_earth(latitude::float, longitude::float), ll_to_earth($${latParam}, $${lngParam}))`;
+    const offset = (page - 1) * limit;
+
+    // Count
+    const countResult = await pgPool.query(
+      `SELECT COUNT(*) FROM businesses ${whereClause}`,
+      values.slice(0, paramIndex - 1),
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Paginated results sorted by distance
+    const queryValues = [...values.slice(0, paramIndex - 1), limit, offset];
+    const { rows } = await pgPool.query(
+      `SELECT *, ROUND((${distanceExpr} / 1000)::numeric, 2) AS distance_km
+       FROM businesses ${whereClause}
+       ORDER BY ${distanceExpr} ASC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      queryValues,
+    );
+
+    return { data: rows, total, page, limit };
+  },
+
   /** Inserts a new business record and returns the created row. */
   async create(data: Record<string, unknown>) {
     logger.debug('businessRepository.create', { name: data.name });
@@ -193,7 +268,10 @@ export const businessRepository = {
   },
 
   /** Replaces all business hours for a business within a transaction. */
-  async setBusinessHours(businessId: string, hours: { dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean }[]) {
+  async setBusinessHours(
+    businessId: string,
+    hours: { dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean }[],
+  ) {
     logger.debug('businessRepository.setBusinessHours', { businessId, count: hours.length });
 
     const client = await pgPool.connect();

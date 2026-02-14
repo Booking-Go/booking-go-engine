@@ -8,6 +8,7 @@ import {
   closeMongoDB,
   closeRedis,
 } from './config';
+import { initFirebase } from './config/firebase';
 import { logger } from './libs';
 import { initializeSocket } from './socket';
 import app from './app';
@@ -22,6 +23,9 @@ const startServer = async () => {
     await connectPostgres();
     await connectMongoDB();
     await connectRedis();
+
+    // Initialize Firebase (push notifications)
+    initFirebase();
 
     server = app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`, {

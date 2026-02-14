@@ -1,9 +1,14 @@
 import { logger, cache } from '../../libs';
 import { AppError } from '../../middleware';
-import { HttpStatus, UserRole, CacheKeys, CacheTTL } from '../constants';
+import { HttpStatus, CacheKeys, CacheTTL } from '../constants';
 import { businessRepository } from '../repositories';
 
-import type { CreateBusinessInput, UpdateBusinessInput, BusinessHoursInput, BusinessHolidayInput } from '../validators';
+import type {
+  CreateBusinessInput,
+  UpdateBusinessInput,
+  BusinessHoursInput,
+  BusinessHolidayInput,
+} from '../validators';
 
 /**
  * Map snake_case DB row → camelCase for client consumption.
@@ -77,7 +82,11 @@ export const businessService = {
     // Check slug uniqueness
     const existing = await businessRepository.findBySlug(input.slug);
     if (existing) {
-      throw new AppError('A business with this slug already exists', HttpStatus.CONFLICT, 'SLUG_TAKEN');
+      throw new AppError(
+        'A business with this slug already exists',
+        HttpStatus.CONFLICT,
+        'SLUG_TAKEN',
+      );
     }
 
     const business = await businessRepository.create({
@@ -149,6 +158,59 @@ export const businessService = {
     };
   },
 
+  /**
+   * Finds nearby businesses sorted by distance from the given coordinates.
+   * @param lat - Latitude of the search origin.
+   * @param lng - Longitude of the search origin.
+   * @param radiusKm - Maximum search radius in km (default 25).
+   * @param page - Page number.
+   * @param limit - Items per page.
+   * @param filters - Optional category/search filters.
+   */
+  async nearby(
+    lat: number,
+    lng: number,
+    radiusKm: number,
+    page: number,
+    limit: number,
+    filters: Record<string, unknown> = {},
+  ) {
+    logger.debug('businessService.nearby', { lat, lng, radiusKm, page, limit });
+
+    // Try cache
+    const cacheKey = CacheKeys.nearbyBusinesses(
+      lat.toFixed(3),
+      lng.toFixed(3),
+      radiusKm.toString(),
+      page,
+    );
+    const cached = await cache.get<{
+      businesses: ReturnType<typeof sanitizeBusiness>[];
+      meta: Record<string, unknown>;
+    }>(cacheKey);
+    if (cached) return cached;
+
+    const result = await businessRepository.findNearby(lat, lng, radiusKm, page, limit, filters);
+
+    const sanitized = result.data.map((row: Record<string, unknown>) => ({
+      ...sanitizeBusiness(row),
+      distanceKm: parseFloat(row.distance_km as string),
+    }));
+
+    const response = {
+      businesses: sanitized,
+      meta: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: Math.ceil(result.total / result.limit),
+      },
+    };
+
+    await cache.set(cacheKey, response, CacheTTL.NEARBY_BUSINESSES);
+    return response;
+  },
+
   async getMyBusinesses(ownerId: string) {
     logger.debug('businessService.getMyBusinesses', { ownerId });
     const businesses = await businessRepository.findByOwnerId(ownerId);
@@ -164,7 +226,11 @@ export const businessService = {
     if (input.slug) {
       const existing = await businessRepository.findBySlug(input.slug);
       if (existing && existing.id !== businessId) {
-        throw new AppError('A business with this slug already exists', HttpStatus.CONFLICT, 'SLUG_TAKEN');
+        throw new AppError(
+          'A business with this slug already exists',
+          HttpStatus.CONFLICT,
+          'SLUG_TAKEN',
+        );
       }
     }
 
@@ -246,7 +312,11 @@ export const businessService = {
       return sanitizeHoliday(result);
     } catch (error: unknown) {
       if (error instanceof Error && error.message?.includes('unique')) {
-        throw new AppError('Holiday already exists for this date', HttpStatus.CONFLICT, 'HOLIDAY_EXISTS');
+        throw new AppError(
+          'Holiday already exists for this date',
+          HttpStatus.CONFLICT,
+          'HOLIDAY_EXISTS',
+        );
       }
       throw error;
     }
