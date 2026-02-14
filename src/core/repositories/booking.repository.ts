@@ -17,6 +17,8 @@ export const bookingRepository = {
     const { rows } = await pgPool.query(
       `SELECT b.*,
               biz.name AS business_name, biz.slug AS business_slug,
+              biz.address_line1 AS business_address, biz.city AS business_city,
+              biz.state AS business_state, biz.zip_code AS business_zip,
               sv.name AS service_name, sv.duration AS service_duration
        FROM bookings b
        LEFT JOIN businesses biz ON b.business_id = biz.id
@@ -68,6 +70,8 @@ export const bookingRepository = {
     const { rows } = await pgPool.query(
       `SELECT b.*,
               biz.name AS business_name, biz.slug AS business_slug,
+              biz.address_line1 AS business_address, biz.city AS business_city,
+              biz.state AS business_state, biz.zip_code AS business_zip,
               sv.name AS service_name, sv.duration AS service_duration
        FROM bookings b
        LEFT JOIN businesses biz ON b.business_id = biz.id
@@ -181,6 +185,8 @@ export const bookingRepository = {
     const { rows } = await pgPool.query(
       `SELECT b.*,
               biz.name AS business_name, biz.slug AS business_slug,
+              biz.address_line1 AS business_address, biz.city AS business_city,
+              biz.state AS business_state, biz.zip_code AS business_zip,
               u.first_name AS customer_first_name, u.last_name AS customer_last_name,
               sv.name AS service_name, sv.duration AS service_duration
        FROM bookings b

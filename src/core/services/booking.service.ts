@@ -406,6 +406,10 @@ export const bookingService = {
               id: row.business_id,
               name: row.business_name,
               slug: row.business_slug,
+              address: row.business_address || '',
+              city: row.business_city || '',
+              state: row.business_state || '',
+              zipCode: row.business_zip || '',
             },
           }
         : {}),
