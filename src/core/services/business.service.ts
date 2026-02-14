@@ -111,6 +111,21 @@ export const businessService = {
       settings: input.settings,
     });
 
+    // Create default business hours: Mon–Fri 09:00–17:00, Sat–Sun closed
+    const defaultHours = Array.from({ length: 7 }, (_, i) => ({
+      dayOfWeek: i,
+      openTime: '09:00',
+      closeTime: '17:00',
+      isClosed: i >= 5, // Saturday (5) and Sunday (6) closed
+    }));
+
+    try {
+      await businessRepository.setBusinessHours(business.id, defaultHours);
+      logger.info('Default business hours created', { businessId: business.id });
+    } catch (err) {
+      logger.warn('Failed to create default business hours', { businessId: business.id, err });
+    }
+
     return sanitizeBusiness(business);
   },
 

@@ -51,11 +51,7 @@ export type {
 } from './slot.validator';
 
 // Booking validators
-export {
-  createBookingSchema,
-  updateBookingSchema,
-  cancelBookingSchema,
-} from './booking.validator';
+export { createBookingSchema, updateBookingSchema, cancelBookingSchema } from './booking.validator';
 export type {
   CreateBookingInput,
   UpdateBookingInput,
@@ -73,3 +69,10 @@ export type { SendMessageInput, StartConversationInput } from './message.validat
 // Common validators
 export { paginationQuerySchema, uuidParamSchema } from './common.validator';
 export type { PaginationQuery, UuidParam } from './common.validator';
+
+// Device token validators
+export { registerDeviceTokenSchema, unregisterDeviceTokenSchema } from './device-token.validator';
+export type {
+  RegisterDeviceTokenInput,
+  UnregisterDeviceTokenInput,
+} from './device-token.validator';

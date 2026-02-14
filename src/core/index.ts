@@ -39,4 +39,5 @@ export {
   reviewService,
   notificationService,
   analyticsService,
+  pushService,
 } from './services';

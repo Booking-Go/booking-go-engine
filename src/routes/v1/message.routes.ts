@@ -22,12 +22,15 @@ router.post(
     );
 
     // If a message was provided, send it as the first message
-    const message = await messageService.sendMessage(
-      conversation.id,
-      req.user!.id,
-      req.user!.role === 'business_owner' ? 'business_owner' : 'customer',
-      input.message,
-    );
+    let message = null;
+    if (input.message) {
+      message = await messageService.sendMessage(
+        conversation.id,
+        req.user!.id,
+        req.user!.role === 'business_owner' ? 'business_owner' : 'customer',
+        input.message,
+      );
+    }
 
     res.status(HttpStatus.CREATED).json({
       success: true,
@@ -101,10 +104,7 @@ router.post(
 router.put(
   '/conversations/:conversationId/read',
   asyncWrapper(async (req: AuthRequest, res: Response) => {
-    await messageService.markConversationRead(
-      req.params.conversationId,
-      req.user!.id,
-    );
+    await messageService.markConversationRead(req.params.conversationId, req.user!.id);
     res.status(HttpStatus.OK).json({
       success: true,
       data: { message: 'Conversation marked as read' },
@@ -116,10 +116,7 @@ router.put(
 router.get(
   '/unread-count',
   asyncWrapper(async (req: AuthRequest, res: Response) => {
-    const count = await messageService.getTotalUnreadCount(
-      req.user!.id,
-      req.user!.role,
-    );
+    const count = await messageService.getTotalUnreadCount(req.user!.id, req.user!.role);
     res.status(HttpStatus.OK).json({ success: true, data: { count } });
   }),
 );

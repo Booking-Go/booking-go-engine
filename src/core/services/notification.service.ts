@@ -1,5 +1,5 @@
 import { logger } from '../../libs';
-import { AppError } from '../../middleware/errorHandler';
+import { AppError } from '../../middleware';
 import { HttpStatus, NotificationType, Pagination } from '../constants';
 import { Notification } from '../../models';
 import { pushService } from './push.service';
@@ -45,9 +45,17 @@ export const notificationService = {
             : {}),
         },
       })
+      .then(() => {
+        Notification.findByIdAndUpdate(notification._id, {
+          'channels.push': { sent: true, sentAt: new Date() },
+        }).catch(() => {});
+      })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : 'Unknown error';
         logger.warn(`Push notification failed (non-fatal): ${msg}`);
+        Notification.findByIdAndUpdate(notification._id, {
+          'channels.push': { sent: false, error: msg },
+        }).catch(() => {});
       });
 
     return notification;
@@ -143,5 +151,30 @@ export const notificationService = {
   async markAllAsRead(userId: string) {
     logger.debug('notificationService.markAllAsRead', { userId });
     await Notification.updateMany({ userId, isRead: false }, { isRead: true, readAt: new Date() });
+  },
+
+  /**
+   * Deletes a single notification.
+   * @param notificationId - The notification's MongoDB ObjectId.
+   * @param userId - The user's UUID (ownership check).
+   */
+  async deleteOne(notificationId: string, userId: string) {
+    logger.debug('notificationService.deleteOne', { notificationId, userId });
+
+    const result = await Notification.findOneAndDelete({ _id: notificationId, userId });
+    if (!result) {
+      throw new AppError('Notification not found', HttpStatus.NOT_FOUND);
+    }
+  },
+
+  /**
+   * Deletes all notifications for a user.
+   * @param userId - The user's UUID.
+   * @returns The number of notifications deleted.
+   */
+  async deleteAll(userId: string): Promise<number> {
+    logger.debug('notificationService.deleteAll', { userId });
+    const result = await Notification.deleteMany({ userId });
+    return result.deletedCount ?? 0;
   },
 };

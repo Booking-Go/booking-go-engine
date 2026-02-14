@@ -86,6 +86,18 @@ router.get(
   }),
 );
 
+// GET /businesses/mine - Get businesses owned by current user
+// Placed above /:id to prevent Express matching "mine" as a UUID param.
+router.get(
+  '/mine',
+  authenticate,
+  authorize('business_owner', 'admin'),
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const businesses = await businessService.getMyBusinesses(req.user!.id);
+    res.status(HttpStatus.OK).json({ success: true, data: businesses });
+  }),
+);
+
 // GET /businesses/:id - Get business by ID (public profile)
 router.get(
   '/:id',
@@ -140,16 +152,6 @@ router.get(
 // All routes below require authentication.
 
 router.use(authenticate);
-
-// GET /businesses/mine - Get businesses owned by current user
-router.get(
-  '/mine',
-  authorize('business_owner', 'admin'),
-  asyncWrapper(async (req: AuthRequest, res: Response) => {
-    const businesses = await businessService.getMyBusinesses(req.user!.id);
-    res.status(HttpStatus.OK).json({ success: true, data: businesses });
-  }),
-);
 
 // POST /businesses - Create new business (business_owner only)
 router.post(
@@ -265,7 +267,6 @@ router.delete(
 // GET /businesses/:id/analytics - Get business analytics
 router.get(
   '/:id/analytics',
-  authenticate,
   authorize('business_owner', 'admin'),
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const period = (req.query.period as string) || '30d';
@@ -286,7 +287,6 @@ router.get(
 // GET /businesses/:id/analytics/report - Get revenue report for export
 router.get(
   '/:id/analytics/report',
-  authenticate,
   authorize('business_owner', 'admin'),
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const startDate = req.query.startDate as string;

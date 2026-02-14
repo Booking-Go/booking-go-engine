@@ -49,6 +49,7 @@ const formatDate = (d: Date) => d.toISOString().split('T')[0];
 // ─── IDs ────────────────────────────────────────────────
 // Existing accounts (keep same email, generate IDs for seed)
 const CUSTOMER_1_ID = uuid(); // booking@co.com
+const CUSTOMER_1B_ID = uuid(); // booking@co.in
 const OWNER_1_ID = uuid(); // booking@go.com
 
 // Additional customers
@@ -91,6 +92,8 @@ async function main() {
   try {
     // Clean existing data (order matters for FK constraints)
     console.log('🗑️  Cleaning existing data...');
+    await pool.query('CREATE EXTENSION IF NOT EXISTS cube');
+    await pool.query('CREATE EXTENSION IF NOT EXISTS earthdistance');
     await pool.query('DELETE FROM reviews');
     await pool.query('DELETE FROM bookings');
     await pool.query('DELETE FROM slots');
@@ -105,6 +108,7 @@ async function main() {
     const users = [
       // Primary test accounts
       [CUSTOMER_1_ID, 'booking@co.com', passwordHash, 'Shahid', 'Raza', '+919876543210', 'customer', true],
+      [CUSTOMER_1B_ID, 'booking@co.in', passwordHash, 'Arjun', 'Nair', '+919876543217', 'customer', true],
       [OWNER_1_ID, 'booking@go.com', passwordHash, 'Shahid', 'Khan', '+919876543211', 'business_owner', true],
       // Additional customers
       [CUSTOMER_2_ID, 'priya.sharma@example.com', passwordHash, 'Priya', 'Sharma', '+919876543212', 'customer', true],

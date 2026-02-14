@@ -2,11 +2,22 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import chalk from 'chalk';
 
-import { jwt } from '../libs';
-import { logger } from '../libs';
+import { jwt, logger } from '../libs';
 import { messageService } from '../core/services/message.service';
 import { sendMessageSchema } from '../core/validators';
 import { Conversation } from '../models';
+
+/**
+ * Extracts a named cookie value from a raw Cookie header string.
+ * @param cookieHeader - The raw `Cookie` header value.
+ * @param name - The cookie name to extract.
+ * @returns The cookie value, or undefined if not found.
+ */
+const parseCookie = (cookieHeader: string | undefined, name: string): string | undefined => {
+  if (!cookieHeader) return undefined;
+  const match = cookieHeader.split(';').find((c) => c.trim().startsWith(`${name}=`));
+  return match ? match.split('=')[1]?.trim() : undefined;
+};
 
 /** Authenticated socket with user info attached after handshake. */
 interface AuthenticatedSocket extends Socket {
@@ -50,7 +61,11 @@ export const initializeSocket = (httpServer: HttpServer): Server => {
 
   // ─── JWT Authentication middleware ──────────────────────────────────
   io.use((socket, next) => {
-    const token = socket.handshake.auth.token as string | undefined;
+    // Support both auth.token (legacy) and HttpOnly cookie
+    const token =
+      (socket.handshake.auth.token as string | undefined) ||
+      parseCookie(socket.handshake.headers.cookie, 'accessToken');
+
     if (!token) {
       return next(new Error('Authentication required'));
     }

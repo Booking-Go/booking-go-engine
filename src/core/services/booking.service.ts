@@ -90,7 +90,11 @@ export const bookingService = {
       );
 
       // 6. Update slot booked count
-      const updatedSlot = await slotRepository.incrementBookedCount(slot.id, requestedPeople, client);
+      const updatedSlot = await slotRepository.incrementBookedCount(
+        slot.id,
+        requestedPeople,
+        client,
+      );
       if (!updatedSlot) {
         await client.query('ROLLBACK');
         throw new AppError('Slot is no longer available (concurrent booking)', HttpStatus.CONFLICT);
@@ -105,13 +109,16 @@ export const bookingService = {
 
       // 9. Trigger notification (best-effort — don't break booking on notification failure)
       try {
-        await notificationService.create({
-          userId: slot.business_id, // will be enhanced when notifications are implemented
-          type: NotificationType.BOOKING_CREATED,
-          title: 'New Booking',
-          message: `${customer.first_name} ${customer.last_name} booked a slot on ${bookingDate}`,
-          metadata: { bookingId: booking.id, slotId: slot.id },
-        });
+        const business = await businessRepository.findById(slot.business_id);
+        if (business) {
+          await notificationService.create({
+            userId: business.owner_id,
+            type: NotificationType.BOOKING_CREATED,
+            title: 'New Booking',
+            message: `${customer.first_name} ${customer.last_name} booked a slot on ${bookingDate}`,
+            metadata: { bookingId: booking.id, slotId: slot.id },
+          });
+        }
       } catch {
         logger.warn('Failed to create booking notification (non-fatal)');
       }
@@ -204,7 +211,10 @@ export const bookingService = {
     }
 
     if (booking.status !== BookingStatus.PENDING) {
-      throw new AppError(`Cannot confirm a booking with status "${booking.status}"`, HttpStatus.BAD_REQUEST);
+      throw new AppError(
+        `Cannot confirm a booking with status "${booking.status}"`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const updated = await bookingRepository.updateStatus(bookingId, BookingStatus.CONFIRMED);
@@ -232,7 +242,12 @@ export const bookingService = {
    * @param requesterRole - Role of the requesting user.
    * @param input - Validated cancellation input (reason).
    */
-  async cancel(bookingId: string, requesterId: string, requesterRole: string, input: CancelBookingInput) {
+  async cancel(
+    bookingId: string,
+    requesterId: string,
+    requesterRole: string,
+    input: CancelBookingInput,
+  ) {
     logger.debug('bookingService.cancel', { bookingId, requesterId });
 
     const booking = await bookingRepository.findById(bookingId);
@@ -309,7 +324,10 @@ export const bookingService = {
     }
 
     if (booking.status !== BookingStatus.CONFIRMED) {
-      throw new AppError(`Cannot complete a booking with status "${booking.status}". Must be confirmed first.`, HttpStatus.BAD_REQUEST);
+      throw new AppError(
+        `Cannot complete a booking with status "${booking.status}". Must be confirmed first.`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const updated = await bookingRepository.updateStatus(bookingId, BookingStatus.COMPLETED);

@@ -135,7 +135,7 @@ export const bookingRepository = {
     return { data: rows, total, page, limit };
   },
 
-  /** Find all bookings for businesses owned by a given user */
+  /** Find all bookings for businesses owned by a given user AND bookings they made as a customer */
   async findByOwnerId(
     ownerId: string,
     page: number,
@@ -144,7 +144,8 @@ export const bookingRepository = {
   ) {
     logger.debug('bookingRepository.findByOwnerId', { ownerId, page, limit });
 
-    const conditions: string[] = ['biz.owner_id = $1'];
+    // Owner sees both: bookings at their businesses + their own bookings as a customer
+    const conditions: string[] = ['(biz.owner_id = $1 OR b.customer_id = $1)'];
     const values: unknown[] = [ownerId];
     let paramIndex = 2;
 
@@ -169,7 +170,7 @@ export const bookingRepository = {
     const countResult = await pgPool.query(
       `SELECT COUNT(*)
        FROM bookings b
-       JOIN businesses biz ON b.business_id = biz.id
+       LEFT JOIN businesses biz ON b.business_id = biz.id
        ${whereClause}`,
       values,
     );
@@ -183,7 +184,7 @@ export const bookingRepository = {
               u.first_name AS customer_first_name, u.last_name AS customer_last_name,
               sv.name AS service_name, sv.duration AS service_duration
        FROM bookings b
-       JOIN businesses biz ON b.business_id = biz.id
+       LEFT JOIN businesses biz ON b.business_id = biz.id
        LEFT JOIN users u ON b.customer_id = u.id
        LEFT JOIN services sv ON b.service_id = sv.id
        ${whereClause}

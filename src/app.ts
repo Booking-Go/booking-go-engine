@@ -1,6 +1,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 
@@ -40,9 +41,10 @@ app.use(requestId);
 // ─── 4. HTTP request logging (colorized) ───────────────────────────────────
 app.use(requestLogger);
 
-// ─── 5. Body parsing ───────────────────────────────────────────────────────
+// ─── 5. Body parsing + cookies ──────────────────────────────────────────────
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(cookieParser());
 
 // ─── 6. Input sanitization (NoSQL injection + HPP) ─────────────────────────
 app.use(sanitize);

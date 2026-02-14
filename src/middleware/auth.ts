@@ -16,19 +16,18 @@ export interface AuthRequest extends Request {
  * Middleware that verifies the JWT access token from the `Authorization` header
  * and attaches the decoded user payload to `req.user`.
  */
-export const authenticate = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) => {
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    const token = req.headers.authorization?.split(' ')[1] || req.cookies?.accessToken;
 
     if (!token) {
       throw new AppError('No token provided', 401);
     }
 
-    const decoded = jsonwebtoken.verify(token, process.env.JWT_ACCESS_SECRET!) as AccessTokenPayload;
+    const decoded = jsonwebtoken.verify(
+      token,
+      process.env.JWT_ACCESS_SECRET!,
+    ) as AccessTokenPayload;
 
     // Map JWT payload (userId) → req.user (id) for downstream consumers
     req.user = {
@@ -36,7 +35,7 @@ export const authenticate = async (
       email: decoded.email,
       role: decoded.role,
     };
-    
+
     next();
   } catch (err: unknown) {
     if (err instanceof AppError) {

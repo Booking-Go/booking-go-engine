@@ -10,3 +10,4 @@ export type { INotification } from './notification.model';
 export type { IAnalytics } from './analytics.model';
 export type { IConversation } from './conversation.model';
 export type { IMessage } from './message.model';
+export type { IDeviceToken } from './deviceToken.model';

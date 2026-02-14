@@ -5,7 +5,12 @@ import { slotRepository } from '../repositories/slot.repository';
 import { businessRepository } from '../repositories/business.repository';
 import { serviceRepository } from '../repositories/service.repository';
 
-import type { CreateSlotInput, BulkCreateSlotsInput, UpdateSlotInput, AvailableSlotsQuery } from '../validators';
+import type {
+  CreateSlotInput,
+  BulkCreateSlotsInput,
+  UpdateSlotInput,
+  AvailableSlotsQuery,
+} from '../validators';
 
 /**
  * Slot service — business logic for slot management.
@@ -17,7 +22,8 @@ export const slotService = {
     // Verify business exists and caller is the owner
     const business = await businessRepository.findById(input.businessId);
     if (!business) throw new AppError('Business not found', HttpStatus.NOT_FOUND);
-    if (business.owner_id !== ownerId) throw new AppError('You are not the owner of this business', HttpStatus.FORBIDDEN);
+    if (business.owner_id !== ownerId)
+      throw new AppError('You are not the owner of this business', HttpStatus.FORBIDDEN);
 
     // Verify service belongs to this business
     const service = await serviceRepository.findById(input.serviceId);
@@ -53,7 +59,8 @@ export const slotService = {
     // Verify business + ownership
     const business = await businessRepository.findById(input.businessId);
     if (!business) throw new AppError('Business not found', HttpStatus.NOT_FOUND);
-    if (business.owner_id !== ownerId) throw new AppError('You are not the owner of this business', HttpStatus.FORBIDDEN);
+    if (business.owner_id !== ownerId)
+      throw new AppError('You are not the owner of this business', HttpStatus.FORBIDDEN);
 
     // Verify service
     const service = await serviceRepository.findById(input.serviceId);
@@ -67,7 +74,10 @@ export const slotService = {
     const holidayDates = new Set(
       holidays.map((h: Record<string, unknown>) => {
         const d = new Date(h.holiday_date as string);
-        return d.toISOString().split('T')[0];
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
       }),
     );
 
@@ -96,18 +106,36 @@ export const slotService = {
     const endDate = new Date(input.endDate + 'T00:00:00');
     const serviceDuration = service.duration as number; // in minutes
 
+    /** Formats a local Date as YYYY-MM-DD without UTC shifting. */
+    const toLocalDateStr = (date: Date): string => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    let skippedHoliday = 0;
+    let skippedClosed = 0;
+    let skippedDayFilter = 0;
+
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(d);
 
       // Skip holidays
-      if (holidayDates.has(dateStr)) continue;
+      if (holidayDates.has(dateStr)) {
+        skippedHoliday++;
+        continue;
+      }
 
       // JavaScript getDay(): 0=Sun, 1=Mon, ... 6=Sat → convert to our DayOfWeek: 0=Mon..6=Sun
       const jsDay = d.getDay();
       const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1;
 
       // Skip if this day isn't in the requested daysOfWeek filter
-      if (input.daysOfWeek && !input.daysOfWeek.includes(dayOfWeek)) continue;
+      if (input.daysOfWeek && !input.daysOfWeek.includes(dayOfWeek)) {
+        skippedDayFilter++;
+        continue;
+      }
 
       if (input.timeSlots && input.timeSlots.length > 0) {
         // Use explicit time windows provided by the user
@@ -126,7 +154,10 @@ export const slotService = {
       } else {
         // Auto-generate from business hours + service duration
         const hours = hoursMap.get(dayOfWeek);
-        if (!hours) continue; // Business is closed on this day
+        if (!hours) {
+          skippedClosed++;
+          continue; // Business is closed on this day
+        }
 
         // Parse open/close times (HH:mm or HH:mm:ss format)
         const [openH, openM] = hours.openTime.split(':').map(Number);
@@ -159,7 +190,25 @@ export const slotService = {
     }
 
     if (slots.length === 0) {
-      throw new AppError('No slots could be generated for the given date range and business hours', HttpStatus.BAD_REQUEST);
+      const reasons: string[] = [];
+
+      if (hoursMap.size === 0) {
+        reasons.push(
+          'No business hours have been configured. Please set your operating hours in the Hours tab first.',
+        );
+      } else {
+        if (skippedClosed > 0)
+          reasons.push(`${skippedClosed} day(s) skipped because the business is closed`);
+        if (skippedHoliday > 0) reasons.push(`${skippedHoliday} day(s) skipped due to holidays`);
+        if (skippedDayFilter > 0)
+          reasons.push(`${skippedDayFilter} day(s) skipped by day-of-week filter`);
+      }
+
+      const detail = reasons.length > 0 ? `. ${reasons.join('. ')}` : '';
+      throw new AppError(
+        `No slots could be generated for the given date range${detail}`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     if (slots.length > AppConfig.MAX_SLOTS_BULK_CREATE) {
@@ -240,7 +289,8 @@ export const slotService = {
     // Verify ownership
     const business = await businessRepository.findById(businessId);
     if (!business) throw new AppError('Business not found', HttpStatus.NOT_FOUND);
-    if (business.owner_id !== ownerId) throw new AppError('You are not the owner of this business', HttpStatus.FORBIDDEN);
+    if (business.owner_id !== ownerId)
+      throw new AppError('You are not the owner of this business', HttpStatus.FORBIDDEN);
 
     const result = await slotRepository.findByBusinessId(businessId, page, limit, filters);
     const totalPages = Math.ceil(result.total / limit);
@@ -270,7 +320,10 @@ export const slotService = {
 
     // Cannot modify a fully-booked slot's time
     if (existing.booked_count > 0 && (input.startTime || input.endTime)) {
-      throw new AppError('Cannot change time of a slot with existing bookings', HttpStatus.BAD_REQUEST);
+      throw new AppError(
+        'Cannot change time of a slot with existing bookings',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // Cannot reduce capacity below booked count
@@ -305,7 +358,10 @@ export const slotService = {
 
     // Cannot delete a slot with active bookings
     if (existing.booked_count > 0) {
-      throw new AppError('Cannot delete a slot with existing bookings. Cancel bookings first.', HttpStatus.BAD_REQUEST);
+      throw new AppError(
+        'Cannot delete a slot with existing bookings. Cancel bookings first.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const deleted = await slotRepository.delete(slotId);

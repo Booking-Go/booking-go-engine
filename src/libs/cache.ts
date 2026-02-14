@@ -43,14 +43,18 @@ export const cache = {
   },
 
   /**
-   * Delete all keys matching a pattern (e.g. 'business:*:slots').
+   * Delete all keys matching a pattern using SCAN (non-blocking, production-safe).
+   * @param pattern - Glob pattern, e.g. 'business:*:slots'.
    */
   async invalidatePattern(pattern: string): Promise<void> {
     try {
-      const keys = await redisClient.keys(pattern);
-      if (keys.length > 0) {
-        await redisClient.del(keys);
-        logger.debug('Cache invalidated', { pattern, count: keys.length });
+      let deletedCount = 0;
+      for await (const key of redisClient.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+        await redisClient.del(key);
+        deletedCount++;
+      }
+      if (deletedCount > 0) {
+        logger.debug('Cache invalidated', { pattern, count: deletedCount });
       }
     } catch (err: unknown) {
       logger.error('Cache INVALIDATE error', { pattern, error: err });

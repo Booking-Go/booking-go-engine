@@ -2,11 +2,16 @@ import { Router, Response } from 'express';
 
 import { asyncWrapper } from '../../libs';
 import { authenticate, authorize, validate, AuthRequest } from '../../middleware';
-import { HttpStatus, Pagination } from '../../core/constants';
-import { updateUserSchema } from '../../core/validators';
-import { userService } from '../../core/services/user.service';
-import { notificationService } from '../../core/services/notification.service';
-import { pushService } from '../../core/services/push.service';
+import {
+  HttpStatus,
+  Pagination,
+  updateUserSchema,
+  registerDeviceTokenSchema,
+  unregisterDeviceTokenSchema,
+  userService,
+  notificationService,
+  pushService,
+} from '../../core';
 
 const router = Router();
 
@@ -113,21 +118,35 @@ router.put(
   }),
 );
 
+// DELETE /users/me/notifications/:id - Delete a single notification
+router.delete(
+  '/me/notifications/:id',
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    await notificationService.deleteOne(req.params.id, req.user!.id);
+    res.status(HttpStatus.NO_CONTENT).send();
+  }),
+);
+
+// DELETE /users/me/notifications - Clear all notifications
+router.delete(
+  '/me/notifications',
+  asyncWrapper(async (req: AuthRequest, res: Response) => {
+    const count = await notificationService.deleteAll(req.user!.id);
+    res
+      .status(HttpStatus.OK)
+      .json({ success: true, data: { message: `${count} notifications cleared` } });
+  }),
+);
+
 // ─── Push notification (FCM) token management ───────────────────────────────
 
 // POST /users/me/device-tokens - Register an FCM device token
 router.post(
   '/me/device-tokens',
+  validate(registerDeviceTokenSchema, 'body'),
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const { token, deviceType, userAgent } = req.body;
-    if (!token || typeof token !== 'string') {
-      res.status(HttpStatus.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'token is required' },
-      });
-      return;
-    }
-    await pushService.registerToken(req.user!.id, token, deviceType || 'web', userAgent);
+    await pushService.registerToken(req.user!.id, token, deviceType, userAgent);
     res.status(HttpStatus.OK).json({
       success: true,
       data: { message: 'Device token registered' },
@@ -138,15 +157,9 @@ router.post(
 // DELETE /users/me/device-tokens - Unregister an FCM device token
 router.delete(
   '/me/device-tokens',
+  validate(unregisterDeviceTokenSchema, 'body'),
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const { token } = req.body;
-    if (!token || typeof token !== 'string') {
-      res.status(HttpStatus.BAD_REQUEST).json({
-        success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'token is required' },
-      });
-      return;
-    }
     await pushService.unregisterToken(req.user!.id, token);
     res.status(HttpStatus.OK).json({
       success: true,

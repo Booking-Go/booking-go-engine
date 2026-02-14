@@ -14,6 +14,15 @@ import { authService } from '../../core/services/auth.service';
 
 const router = Router();
 
+/** Cookie options for the HttpOnly accessToken cookie. */
+const ACCESS_TOKEN_COOKIE = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  maxAge: 15 * 60 * 1000, // 15 minutes (matches JWT expiry)
+  path: '/',
+};
+
 // POST /auth/register
 router.post(
   '/register',
@@ -21,6 +30,7 @@ router.post(
   validate(registerSchema, 'body'),
   asyncWrapper(async (req, res) => {
     const result = await authService.register(req.body);
+    res.cookie('accessToken', result.accessToken, ACCESS_TOKEN_COOKIE);
     res.status(HttpStatus.CREATED).json({ success: true, data: result });
   }),
 );
@@ -32,6 +42,7 @@ router.post(
   validate(loginSchema, 'body'),
   asyncWrapper(async (req, res) => {
     const result = await authService.login(req.body);
+    res.cookie('accessToken', result.accessToken, ACCESS_TOKEN_COOKIE);
     res.status(HttpStatus.OK).json({ success: true, data: result });
   }),
 );
@@ -42,6 +53,7 @@ router.post(
   validate(refreshTokenSchema, 'body'),
   asyncWrapper(async (req, res) => {
     const result = await authService.refreshToken(req.body.refreshToken);
+    res.cookie('accessToken', result.accessToken, ACCESS_TOKEN_COOKIE);
     res.status(HttpStatus.OK).json({ success: true, data: result });
   }),
 );
@@ -52,6 +64,7 @@ router.post(
   authenticate,
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     await authService.logout(req.user!.id);
+    res.clearCookie('accessToken', { path: '/' });
     res.status(HttpStatus.OK).json({ success: true, data: { message: 'Logged out successfully' } });
   }),
 );

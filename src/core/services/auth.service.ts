@@ -198,9 +198,9 @@ export const authService = {
     const user = await userRepository.findByEmail(emailAddress);
 
     if (user) {
-      // 2. Generate reset token and store in Redis (1 hour TTL)
+      // 2. Generate reset token and store as token→userId in Redis (1 hour TTL)
       const resetToken = jwt.generateRandomToken();
-      await cache.set(`auth:password-reset:${user.id}`, resetToken, 3600);
+      await cache.set(`auth:password-reset:${resetToken}`, user.id, 3600);
 
       // 3. Send reset email
       await email.sendPasswordReset(user.email, resetToken);
@@ -212,20 +212,8 @@ export const authService = {
   },
 
   async resetPassword(token: string, newPassword: string) {
-    // Scan Redis for token match
-    const { getRedisClient } = await import('../../config/redis');
-    const client = getRedisClient();
-    const keys = await client.keys('auth:password-reset:*');
-
-    let matchedUserId: string | null = null;
-    for (const key of keys) {
-      const storedToken = await cache.get<string>(key);
-      if (storedToken === token) {
-        // Extract userId from key pattern: auth:password-reset:{userId}
-        matchedUserId = key.replace('auth:password-reset:', '');
-        break;
-      }
-    }
+    // Direct O(1) lookup — token is the key, userId is the value
+    const matchedUserId = await cache.get<string>(`auth:password-reset:${token}`);
 
     if (!matchedUserId) {
       throw new AppError(
@@ -246,7 +234,7 @@ export const authService = {
     await userRepository.updatePassword(matchedUserId, passwordHash);
 
     // Delete the reset token so it can't be reused
-    await cache.del(`auth:password-reset:${matchedUserId}`);
+    await cache.del(`auth:password-reset:${token}`);
 
     // Invalidate existing refresh token (force re-login)
     await cache.del(CacheKeys.refreshToken(matchedUserId));

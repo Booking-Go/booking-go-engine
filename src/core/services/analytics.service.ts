@@ -2,7 +2,7 @@ import { analyticsRepository } from '../repositories/analytics.repository';
 import { businessRepository } from '../repositories/business.repository';
 import { cache, logger } from '../../libs';
 import { CacheKeys, CacheTTL } from '../constants';
-import { AppError } from '../../middleware/errorHandler';
+import { AppError } from '../../middleware';
 import { HttpStatus } from '../constants';
 
 /**
