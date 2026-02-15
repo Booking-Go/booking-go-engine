@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 
 import { asyncWrapper } from '../../libs';
-import { authenticate, AuthRequest } from '../../middleware';
+import { authenticate, messageRateLimiter, AuthRequest } from '../../middleware';
 import { HttpStatus, Pagination } from '../../core/constants';
 import { sendMessageSchema, startConversationSchema } from '../../core/validators';
 import { messageService } from '../../core/services/message.service';
@@ -88,6 +88,7 @@ router.get(
 // POST /messages/conversations/:conversationId — send a message
 router.post(
   '/conversations/:conversationId',
+  messageRateLimiter,
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const input = sendMessageSchema.parse(req.body);
     const message = await messageService.sendMessage(

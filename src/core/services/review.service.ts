@@ -3,6 +3,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { HttpStatus, BookingStatus, NotificationType, Pagination } from '../constants';
 import { reviewRepository } from '../repositories/review.repository';
 import { bookingRepository } from '../repositories/booking.repository';
+import { businessRepository } from '../repositories/business.repository';
 import { notificationService } from './notification.service';
 
 import type { CreateReviewInput } from '../validators';
@@ -49,13 +50,23 @@ export const reviewService = {
 
     // 4. Trigger notification to business owner (best-effort)
     try {
-      await notificationService.create({
-        userId: booking.business_id,
-        type: NotificationType.REVIEW_RECEIVED,
-        title: 'New Review',
-        message: `A customer left a ${input.rating}-star review`,
-        metadata: { reviewId: review.id, bookingId, rating: input.rating },
-      });
+      const business = await businessRepository.findById(booking.business_id);
+      if (business) {
+        await notificationService.create({
+          userId: business.owner_id,
+          type: NotificationType.REVIEW_RECEIVED,
+          title: 'New Review',
+          message: `${booking.customer_name} left a ${input.rating}-star review for ${business.name}`,
+          metadata: {
+            reviewId: review.id,
+            bookingId,
+            rating: input.rating,
+            businessId: business.id,
+            businessName: business.name,
+            customerName: booking.customer_name,
+          },
+        });
+      }
     } catch {
       logger.warn('Failed to create review notification (non-fatal)');
     }
@@ -69,7 +80,11 @@ export const reviewService = {
    * @param page - Page number.
    * @param limit - Items per page.
    */
-  async getByBusinessId(businessId: string, page: number = Pagination.DEFAULT_PAGE, limit: number = Pagination.DEFAULT_LIMIT) {
+  async getByBusinessId(
+    businessId: string,
+    page: number = Pagination.DEFAULT_PAGE,
+    limit: number = Pagination.DEFAULT_LIMIT,
+  ) {
     logger.debug('reviewService.getByBusinessId', { businessId, page, limit });
 
     const result = await reviewRepository.findByBusinessId(businessId, page, limit);
@@ -100,4 +115,3 @@ export const reviewService = {
     };
   },
 };
-

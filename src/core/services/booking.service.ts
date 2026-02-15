@@ -6,6 +6,7 @@ import { bookingRepository } from '../repositories/booking.repository';
 import { slotRepository } from '../repositories/slot.repository';
 import { businessRepository } from '../repositories/business.repository';
 import { userRepository } from '../repositories/user.repository';
+import { serviceRepository } from '../repositories/service.repository';
 import { notificationService } from './notification.service';
 import { NotificationType } from '../constants';
 
@@ -110,13 +111,34 @@ export const bookingService = {
       // 9. Trigger notification (best-effort — don't break booking on notification failure)
       try {
         const business = await businessRepository.findById(slot.business_id);
+        const service = slot.service_id ? await serviceRepository.findById(slot.service_id) : null;
+        const serviceName = service?.name ?? 'a service';
+        const formattedDate = new Date(slot.start_time).toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        });
+        const formattedTime = new Date(slot.start_time).toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+
         if (business) {
           await notificationService.create({
             userId: business.owner_id,
             type: NotificationType.BOOKING_CREATED,
             title: 'New Booking',
-            message: `${customer.first_name} ${customer.last_name} booked a slot on ${bookingDate}`,
-            metadata: { bookingId: booking.id, slotId: slot.id },
+            message: `${customer.first_name} ${customer.last_name} booked ${serviceName} on ${formattedDate} at ${formattedTime}`,
+            metadata: {
+              bookingId: booking.id,
+              slotId: slot.id,
+              businessId: business.id,
+              businessName: business.name,
+              serviceName,
+              customerName: `${customer.first_name} ${customer.last_name}`,
+              bookingDate,
+            },
           });
         }
       } catch {
@@ -221,12 +243,27 @@ export const bookingService = {
 
     // Notify customer
     try {
+      const service = booking.service_id
+        ? await serviceRepository.findById(booking.service_id)
+        : null;
+      const serviceName = service?.name ?? 'your appointment';
+      const formattedDate = new Date(booking.start_time).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
       await notificationService.create({
         userId: booking.customer_id,
         type: NotificationType.BOOKING_CONFIRMED,
         title: 'Booking Confirmed',
-        message: `Your booking at ${business.name} has been confirmed.`,
-        metadata: { bookingId },
+        message: `${serviceName} at ${business.name} on ${formattedDate} has been confirmed`,
+        metadata: {
+          bookingId,
+          businessId: business.id,
+          businessName: business.name,
+          serviceName,
+        },
       });
     } catch {
       logger.warn('Failed to send confirmation notification (non-fatal)');
@@ -291,13 +328,39 @@ export const bookingService = {
 
     // Notify
     try {
-      const notifyUserId = cancelledBy === 'customer' ? booking.business_id : booking.customer_id;
+      const business = await businessRepository.findById(booking.business_id);
+      const service = booking.service_id
+        ? await serviceRepository.findById(booking.service_id)
+        : null;
+      const serviceName = service?.name ?? 'A booking';
+      const businessName = business?.name ?? 'the business';
+      const notifyUserId =
+        cancelledBy === 'customer'
+          ? (business?.owner_id ?? booking.business_id)
+          : booking.customer_id;
+      const formattedDate = new Date(booking.start_time).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      const message =
+        cancelledBy === 'customer'
+          ? `${booking.customer_name} cancelled ${serviceName} on ${formattedDate}${input.reason ? ` — ${input.reason}` : ''}`
+          : `${serviceName} at ${businessName} on ${formattedDate} has been cancelled${input.reason ? ` — ${input.reason}` : ''}`;
+
       await notificationService.create({
         userId: notifyUserId,
         type: NotificationType.BOOKING_CANCELLED,
         title: 'Booking Cancelled',
-        message: `A booking has been cancelled${input.reason ? `: ${input.reason}` : ''}.`,
-        metadata: { bookingId, cancelledBy },
+        message,
+        metadata: {
+          bookingId,
+          cancelledBy,
+          businessId: booking.business_id,
+          businessName,
+          serviceName,
+        },
       });
     } catch {
       logger.warn('Failed to send cancellation notification (non-fatal)');
@@ -334,12 +397,22 @@ export const bookingService = {
 
     // Notify customer
     try {
+      const service = booking.service_id
+        ? await serviceRepository.findById(booking.service_id)
+        : null;
+      const serviceName = service?.name ?? 'Your appointment';
+
       await notificationService.create({
         userId: booking.customer_id,
         type: NotificationType.BOOKING_COMPLETED,
         title: 'Booking Completed',
-        message: `Your booking at ${business.name} has been completed. How was your experience?`,
-        metadata: { bookingId },
+        message: `${serviceName} at ${business.name} is complete. How was your experience?`,
+        metadata: {
+          bookingId,
+          businessId: business.id,
+          businessName: business.name,
+          serviceName,
+        },
       });
     } catch {
       logger.warn('Failed to send completion notification (non-fatal)');

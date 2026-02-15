@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 
 import { asyncWrapper } from '../../libs';
-import { authenticate, authorize, AuthRequest } from '../../middleware';
+import { authenticate, authorize, bookingRateLimiter, AuthRequest } from '../../middleware';
 import { HttpStatus, Pagination } from '../../core/constants';
 import {
   createBookingSchema,
@@ -31,7 +31,13 @@ router.get(
     if (req.query.startDate) filters.startDate = req.query.startDate as string;
     if (req.query.endDate) filters.endDate = req.query.endDate as string;
 
-    const result = await bookingService.listForUser(req.user!.id, req.user!.role, page, limit, filters);
+    const result = await bookingService.listForUser(
+      req.user!.id,
+      req.user!.role,
+      page,
+      limit,
+      filters,
+    );
     res.status(HttpStatus.OK).json({ success: true, data: result.bookings, meta: result.meta });
   }),
 );
@@ -48,6 +54,7 @@ router.get(
 // POST /bookings — create a new booking (any authenticated user)
 router.post(
   '/',
+  bookingRateLimiter,
   asyncWrapper(async (req: AuthRequest, res: Response) => {
     const input = createBookingSchema.parse(req.body);
     const booking = await bookingService.create(req.user!.id, input);

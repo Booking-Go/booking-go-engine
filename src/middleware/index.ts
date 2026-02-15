@@ -1,6 +1,11 @@
 export { AppError, errorHandler } from './errorHandler';
 export { authenticate, authorize } from './auth';
-export { rateLimiter, authRateLimiter } from './rateLimiter';
+export {
+  rateLimiter,
+  authRateLimiter,
+  bookingRateLimiter,
+  messageRateLimiter,
+} from './rateLimiter';
 export { requestId } from './requestId';
 export { validate } from './validate';
 export { sanitize } from './sanitize';
