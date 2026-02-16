@@ -12,9 +12,9 @@
 #   docker compose up -d redis
 
 services:
-  # ─── PostgreSQL ───────────────────────────────────────
+  # ─── PostgreSQL (with pgvector) ───────────────────────
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: bookinggo-postgres
     restart: unless-stopped
     ports:
@@ -114,6 +114,45 @@ services:
       redis:
         condition: service_healthy
 
+  # ─── Ollama (Local LLM) ──────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: bookinggo-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          memory: 4G
+
+  # ─── Ollama Model Puller (one-time init) ─────────────
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: bookinggo-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo '⏳ Pulling chat model...' &&
+        ollama pull llama3.2:3b &&
+        echo '⏳ Pulling embedding model...' &&
+        ollama pull nomic-embed-text &&
+        echo '✅ All models ready!'
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+
 volumes:
   postgres_data:
     name: bookinggo-postgres-data
@@ -125,3 +164,5 @@ volumes:
     name: bookinggo-pgadmin-data
   redisinsight_data:
     name: bookinggo-redisinsight-data
+  ollama_data:
+    name: bookinggo-ollama-data

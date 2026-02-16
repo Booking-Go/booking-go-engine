@@ -6,3 +6,4 @@ export { hash } from './hash';
 export { jwt } from './jwt';
 export type { AccessTokenPayload, RefreshTokenPayload } from './jwt';
 export { asyncWrapper } from './async-wrapper';
+export { llm } from './llm';

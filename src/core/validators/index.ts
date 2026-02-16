@@ -76,3 +76,7 @@ export type {
   RegisterDeviceTokenInput,
   UnregisterDeviceTokenInput,
 } from './device-token.validator';
+
+// AI chat validators
+export { sendAiMessageSchema, aiSearchSchema } from './ai-chat.validator';
+export type { SendAiMessageInput, AiSearchInput } from './ai-chat.validator';

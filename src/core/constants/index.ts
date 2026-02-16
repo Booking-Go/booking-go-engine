@@ -7,6 +7,8 @@ export {
   DayOfWeek,
   NotificationType,
   ActivityAction,
+  ChatIntentType,
+  Sentiment,
 } from './enums';
 export { CacheKeys, CacheTTL } from './cache-keys';
 export { Pagination, AppConfig } from './app-config';

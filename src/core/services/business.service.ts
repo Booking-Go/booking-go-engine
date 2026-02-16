@@ -2,6 +2,7 @@ import { logger, cache } from '../../libs';
 import { AppError } from '../../middleware';
 import { HttpStatus, CacheKeys, CacheTTL } from '../constants';
 import { businessRepository } from '../repositories';
+import { embeddingService } from './embedding.service';
 
 import type {
   CreateBusinessInput,
@@ -125,6 +126,14 @@ export const businessService = {
     } catch (err) {
       logger.warn('Failed to create default business hours', { businessId: business.id, err });
     }
+
+    // Generate AI embedding in the background (fire-and-forget)
+    embeddingService.generateBusinessEmbedding(business.id).catch((err: unknown) => {
+      logger.warn('Failed to generate business embedding (non-fatal)', {
+        businessId: business.id,
+        error: err,
+      });
+    });
 
     return sanitizeBusiness(business);
   },
@@ -256,6 +265,14 @@ export const businessService = {
 
     // Invalidate cache
     await cache.del(CacheKeys.businessProfile(businessId));
+
+    // Re-generate AI embedding in the background (fire-and-forget)
+    embeddingService.generateBusinessEmbedding(businessId).catch((err: unknown) => {
+      logger.warn('Failed to regenerate business embedding (non-fatal)', {
+        businessId,
+        error: err,
+      });
+    });
 
     return sanitizeBusiness(updated);
   },

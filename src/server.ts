@@ -4,9 +4,11 @@ import {
   connectPostgres,
   connectMongoDB,
   connectRedis,
+  connectOllama,
   closePostgres,
   closeMongoDB,
   closeRedis,
+  closeOllama,
 } from './config';
 import { initFirebase } from './config/firebase';
 import { logger } from './libs';
@@ -26,6 +28,9 @@ const startServer = async () => {
 
     // Initialize Firebase (push notifications)
     initFirebase();
+
+    // Connect to Ollama (AI — non-blocking, app works without it)
+    await connectOllama();
 
     server = app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`, {
@@ -47,6 +52,7 @@ const startServer = async () => {
 
         try {
           await Promise.allSettled([closePostgres(), closeMongoDB(), closeRedis()]);
+          closeOllama();
           logger.info('All database connections closed');
           process.exit(0);
         } catch (err) {

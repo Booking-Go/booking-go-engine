@@ -12,7 +12,9 @@
     "lint:fix": "eslint 'src/**/*.ts' --fix",
     "format": "prettier --write 'src/**/*.ts'",
     "format:check": "prettier --check 'src/**/*.ts'",
-    "prepare": "husky"
+    "prepare": "husky",
+    "seed": "ts-node -r dotenv/config scripts/seed.ts",
+    "seed:ai": "ts-node -r dotenv/config scripts/seed-ai.ts"
   },
   "keywords": [
     "booking",
@@ -38,7 +40,9 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
     "morgan": "^1.10.0",
+    "ollama": "^0.6.3",
     "pg": "^8.11.3",
+    "pgvector": "^0.2.1",
     "redis": "^4.6.11",
     "resend": "^6.9.2",
     "socket.io": "^4.8.3",

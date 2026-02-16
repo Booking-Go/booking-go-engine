@@ -7,6 +7,8 @@ export {
   DayOfWeek,
   NotificationType,
   ActivityAction,
+  ChatIntentType,
+  Sentiment,
   CacheKeys,
   CacheTTL,
   Pagination,
@@ -26,6 +28,7 @@ export {
   bookingRepository,
   reviewRepository,
   analyticsRepository,
+  embeddingRepository,
 } from './repositories';
 
 // Services (business logic layer)
@@ -40,4 +43,7 @@ export {
   notificationService,
   analyticsService,
   pushService,
+  embeddingService,
+  sentimentService,
+  aiChatService,
 } from './services';

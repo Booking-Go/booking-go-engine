@@ -9,3 +9,6 @@ export { notificationService } from './notification.service';
 export { analyticsService } from './analytics.service';
 export { messageService } from './message.service';
 export { pushService } from './push.service';
+export { embeddingService } from './embedding.service';
+export { sentimentService } from './sentiment.service';
+export { aiChatService } from './ai-chat.service';

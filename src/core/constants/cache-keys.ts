@@ -27,6 +27,12 @@ export const CacheKeys = {
 
   // Rate limiting per user
   rateLimit: (userId: string, endpoint: string) => `ratelimit:${userId}:${endpoint}`,
+
+  // AI chat session context
+  aiChatSession: (userId: string) => `ai:chat:session:${userId}`,
+
+  // AI embedding cache
+  aiEmbedding: (entityType: string, entityId: string) => `ai:embedding:${entityType}:${entityId}`,
 } as const;
 
 /**
@@ -40,4 +46,6 @@ export const CacheTTL = {
   REFRESH_TOKEN: 60 * 60 * 24 * 30, // 30 days
   TOKEN_BLACKLIST: 60 * 60, // 1 hour (match access token expiry)
   NEARBY_BUSINESSES: 120, // 2 min — location-based results
+  AI_CHAT_SESSION: 1800, // 30 min — conversation context window
+  AI_EMBEDDING: 86400, // 24 hours — embeddings rarely change
 } as const;

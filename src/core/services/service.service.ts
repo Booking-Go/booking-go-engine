@@ -1,4 +1,5 @@
 import { logger, cache } from '../../libs';
+import { embeddingService } from './embedding.service';
 import { AppError } from '../../middleware/errorHandler';
 import { HttpStatus, CacheKeys, CacheTTL } from '../constants';
 import { serviceRepository } from '../repositories/service.repository';
@@ -39,6 +40,14 @@ export const serviceService = {
     // Invalidate cache
     await cache.del(CacheKeys.businessServices(businessId));
 
+    // Generate AI embedding in the background (fire-and-forget)
+    embeddingService.generateServiceEmbedding(service.id).catch((err: unknown) => {
+      logger.warn('Failed to generate service embedding (non-fatal)', {
+        serviceId: service.id,
+        error: err,
+      });
+    });
+
     return this.formatService(service);
   },
 
@@ -46,7 +55,9 @@ export const serviceService = {
     logger.debug('serviceService.getByBusinessId', { businessId });
 
     // Try cache first
-    const cached = await cache.get<ReturnType<typeof this.formatService>[]>(CacheKeys.businessServices(businessId));
+    const cached = await cache.get<ReturnType<typeof this.formatService>[]>(
+      CacheKeys.businessServices(businessId),
+    );
     if (cached) return cached;
 
     // Verify business exists
@@ -95,6 +106,11 @@ export const serviceService = {
 
     // Invalidate cache
     await cache.del(CacheKeys.businessServices(existing.business_id));
+
+    // Re-generate AI embedding in the background (fire-and-forget)
+    embeddingService.generateServiceEmbedding(serviceId).catch((err: unknown) => {
+      logger.warn('Failed to regenerate service embedding (non-fatal)', { serviceId, error: err });
+    });
 
     return this.formatService(updated);
   },

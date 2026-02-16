@@ -6,6 +6,7 @@ import slotRoutes from './slot.routes';
 import bookingRoutes from './booking.routes';
 import userRoutes from './user.routes';
 import messageRoutes from './message.routes';
+import aiRoutes from './ai.routes';
 
 const v1Router = Router();
 
@@ -23,5 +24,6 @@ v1Router.use('/slots', slotRoutes);
 v1Router.use('/bookings', bookingRoutes);
 v1Router.use('/users', userRoutes);
 v1Router.use('/messages', messageRoutes);
+v1Router.use('/ai', aiRoutes);
 
 export default v1Router;

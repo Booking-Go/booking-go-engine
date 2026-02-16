@@ -57,4 +57,21 @@ export enum ActivityAction {
   BOOKING_CANCELLED = 'booking_cancelled',
   BOOKING_COMPLETED = 'booking_completed',
   REVIEW_CREATED = 'review_created',
+  AI_CHAT_MESSAGE = 'ai_chat_message',
+}
+
+export enum ChatIntentType {
+  SEARCH_BUSINESS = 'SEARCH_BUSINESS',
+  CHECK_AVAILABILITY = 'CHECK_AVAILABILITY',
+  MAKE_BOOKING = 'MAKE_BOOKING',
+  CANCEL_BOOKING = 'CANCEL_BOOKING',
+  GET_RECOMMENDATIONS = 'GET_RECOMMENDATIONS',
+  GENERAL_QUESTION = 'GENERAL_QUESTION',
+  UNCLEAR = 'UNCLEAR',
+}
+
+export enum Sentiment {
+  POSITIVE = 'positive',
+  NEUTRAL = 'neutral',
+  NEGATIVE = 'negative',
 }

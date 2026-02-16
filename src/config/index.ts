@@ -1,6 +1,13 @@
 export { connectPostgres, getPostgresPool, closePostgres } from './postgres';
 export { connectMongoDB, closeMongoDB } from './mongodb';
 export { connectRedis, getRedisClient, closeRedis } from './redis';
+export {
+  connectOllama,
+  getOllamaClient,
+  isOllamaAvailable,
+  closeOllama,
+  OllamaConfig,
+} from './ollama';
 
 // Re-export getters as lazy accessors for convenience.
 // Usage: import { pgPool, redisClient } from '../config';
@@ -9,6 +16,7 @@ export { connectRedis, getRedisClient, closeRedis } from './redis';
 /** Lazy-loaded proxy to the PostgreSQL `Pool` instance. */
 export const pgPool = new Proxy({} as ReturnType<typeof import('./postgres').getPostgresPool>, {
   get(_, prop) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { getPostgresPool } = require('./postgres');
     return (getPostgresPool() as Record<string | symbol, unknown>)[prop];
   },
@@ -17,6 +25,7 @@ export const pgPool = new Proxy({} as ReturnType<typeof import('./postgres').get
 /** Lazy-loaded proxy to the Redis client instance. */
 export const redisClient = new Proxy({} as ReturnType<typeof import('./redis').getRedisClient>, {
   get(_, prop) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { getRedisClient } = require('./redis');
     const client = getRedisClient();
     const value = (client as Record<string | symbol, unknown>)[prop];

@@ -5,6 +5,7 @@ import { reviewRepository } from '../repositories/review.repository';
 import { bookingRepository } from '../repositories/booking.repository';
 import { businessRepository } from '../repositories/business.repository';
 import { notificationService } from './notification.service';
+import { sentimentService } from './sentiment.service';
 
 import type { CreateReviewInput } from '../validators';
 
@@ -48,7 +49,14 @@ export const reviewService = {
       comment: input.comment,
     });
 
-    // 4. Trigger notification to business owner (best-effort)
+    // 4. Analyze sentiment in background (fire-and-forget)
+    if (input.comment) {
+      sentimentService.analyzeReview(review.id, input.comment).catch((err: unknown) => {
+        logger.warn('Sentiment analysis failed (non-fatal)', { reviewId: review.id, error: err });
+      });
+    }
+
+    // 5. Trigger notification to business owner (best-effort)
     try {
       const business = await businessRepository.findById(booking.business_id);
       if (business) {
